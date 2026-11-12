@@ -58,12 +58,17 @@ jobs:
             sleep 6
             xcrun simctl io "$UDID" screenshot "out/$name.png"
           }
-          shot 01-home
-          shot 02-capabilities -sheet capabilities
-          shot 03-sidebar -sidebar YES
-          shot 04-chat-video -chat c1
-          shot 05-chat-image -chat c2
-          shot 06-presets -route presets
+          shot 01-login
+          shot 02-home -demo YES
+          shot 03-capabilities -demo YES -sheet capabilities
+          shot 04-sidebar -demo YES -sidebar YES
+          shot 05-chat-video -demo YES -chat c1
+          shot 06-chat-image -demo YES -chat c2
+          shot 07-studio -demo YES -route studio
+          shot 08-library -demo YES -route library
+          shot 09-presets -demo YES -route presets
+          shot 10-billing -demo YES -route billing
+          shot 11-settings -demo YES -route settings
           xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "NXOR"' --style compact 2>/dev/null | grep -iE "fault|error|crash" | tail -40 > out/runtime-errors.txt || true
 
       - name: Publish results to ci-results branch

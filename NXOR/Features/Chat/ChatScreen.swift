@@ -23,7 +23,7 @@ struct ChatScreen: View {
             Composer(text: $draft, focused: $composerFocused) {
                 let text = draft
                 draft = ""
-                Task { await model.send(text) }
+                model.send(text)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 8)

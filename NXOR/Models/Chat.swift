@@ -14,6 +14,7 @@ struct ChatThread: Identifiable, Hashable {
     let id: String
     var title: String
     var messages: [ChatMessage]
+    var loaded = true
 }
 
 struct ChatMessage: Identifiable, Hashable {
@@ -24,17 +25,28 @@ struct ChatMessage: Identifiable, Hashable {
     var text: String
     var answeredBy: String? = nil
     var generation: GenerationCard? = nil
+    var generations: [GenerationCard] = []
+    var proposals: [ChatProposal] = []
+    var files: [URL] = []
+
+    var allGenerations: [GenerationCard] { (generation.map { [$0] } ?? []) + generations }
 }
 
-struct GenerationCard: Hashable {
+struct GenerationCard: Hashable, Identifiable {
     enum Kind: String, Hashable { case image, video }
     enum Status: String, Hashable { case pending, processing, completed, failed }
 
+    var id: String { generationId ?? prompt }
+    var generationId: String? = nil
     let kind: Kind
-    let model: String
-    let credits: Int
+    var model: String
+    var credits: Int
     var status: Status
     let prompt: String
+    var url: URL? = nil
+    var thumbnailUrl: URL? = nil
+    var aspect: Double? = nil
+    var errorMessage: String? = nil
 }
 
 enum ChatStage: String {

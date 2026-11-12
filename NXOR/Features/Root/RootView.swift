@@ -4,6 +4,31 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        Group {
+            switch model.auth {
+            case .checking:
+                ZStack {
+                    NX.C.bg.ignoresSafeArea()
+                    NXMark().fill(NX.G.logo).frame(width: 64, height: 64)
+                }
+            case .signedOut:
+                LoginView()
+            case .demo, .live:
+                main
+            }
+        }
+        .task { await model.bootstrap() }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
+    }
+
+    private var main: some View {
         GeometryReader { geo in
             let drawerWidth = min(geo.size.width * 0.78, 340)
 
@@ -37,8 +62,16 @@ struct RootView: View {
             ChatScreen()
         case .presets:
             PresetsScreen()
-        default:
-            ComingSoonView(route: model.route)
+        case .library:
+            LibraryScreen()
+        case .studio:
+            StudioScreen()
+        case .billing:
+            BillingScreen()
+        case .settings:
+            SettingsScreen()
+        case .help:
+            HelpScreen()
         }
     }
 }
@@ -58,31 +91,5 @@ struct TopBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-    }
-}
-
-struct ComingSoonView: View {
-    let route: Route
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DisplayTitle(title, size: 30)
-            MetaLabel("Coming in the next build")
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-    }
-
-    private var title: String {
-        switch route {
-        case .chat: return "Chat"
-        case .studio: return "Studio"
-        case .library: return "Library"
-        case .presets: return "Presets"
-        case .billing: return "Plans"
-        case .settings: return "Settings"
-        case .help: return "Help center"
-        }
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVKit
 
 struct ThreadView: View {
     let chat: ChatThread
@@ -56,8 +57,25 @@ struct MessageView: View {
                     .foregroundStyle(NX.C.ink)
                     .lineSpacing(5)
                     .textSelection(.enabled)
-                if let generation = message.generation {
+                ForEach(message.allGenerations) { generation in
                     GenerationCardView(card: generation)
+                }
+                ForEach(message.proposals) { proposal in
+                    ProposalCardView(proposal: proposal)
+                }
+                ForEach(message.files, id: \.self) { url in
+                    Link(destination: url) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "doc")
+                            Text(url.lastPathComponent).lineLimit(1)
+                            Spacer()
+                            Image(systemName: "arrow.down.circle")
+                        }
+                        .font(NX.F.body(15))
+                        .foregroundStyle(NX.C.ink)
+                        .padding(14)
+                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                    }
                 }
                 if let answeredBy = message.answeredBy, !message.text.isEmpty {
                     HStack(spacing: 22) {
@@ -100,24 +118,37 @@ struct GenerationCardView: View {
                         : [Color(hex: 0x3D1B2E), Color(hex: 0x12151A), Color(hex: 0x16203A)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
-                if card.kind == .video {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 22))
+                if card.status == .completed, card.kind == .video, let url = card.url {
+                    VideoPlayer(player: AVPlayer(url: url))
+                } else if card.status == .completed, let url = card.thumbnailUrl ?? card.url {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image { image.resizable().scaledToFit() } else { Skeleton() }
+                    }
+                } else if card.status == .failed {
+                    VStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle").foregroundStyle(NX.C.danger)
+                        Text(card.errorMessage ?? "Generation failed").font(NX.F.body(14)).foregroundStyle(NX.C.ink2)
+                    }
+                    .padding()
+                } else if card.status == .completed {
+                    Image(systemName: card.kind == .video ? "play.fill" : "photo")
+                        .font(.system(size: 24))
                         .foregroundStyle(NX.C.ink)
                         .frame(width: 64, height: 64)
                         .background(Color.black.opacity(0.55))
                 } else {
-                    Image(systemName: "photo")
-                        .font(.system(size: 28))
-                        .foregroundStyle(NX.C.ink3)
+                    VStack(spacing: 10) {
+                        ProgressView().tint(NX.C.accent)
+                        MetaLabel(statusLabel, color: NX.C.ink2, size: 10)
+                    }
                 }
             }
-            .aspectRatio(card.kind == .video ? 0.75 : 1.5, contentMode: .fit)
+            .aspectRatio(card.aspect.map { CGFloat($0) } ?? (card.kind == .video ? 0.75 : 1.5), contentMode: .fit)
             .frame(maxWidth: .infinity)
             .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
 
             HStack {
-                MetaLabel("\(card.model) · \(card.credits) credits", color: NX.C.ink3, size: 10)
+                MetaLabel(card.credits > 0 ? "\(card.model) · \(card.credits) credits" : card.model, color: NX.C.ink3, size: 10)
                 Spacer()
                 MetaLabel(statusLabel, color: NX.C.ink3, size: 10)
             }
@@ -151,5 +182,32 @@ struct StageIndicator: View {
         .onAppear {
             withAnimation(.easeInOut(duration: 0.6).repeatForever()) { pulse = true }
         }
+    }
+}
+
+struct ProposalCardView: View {
+    let proposal: ChatProposal
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                MetaLabel("Proposed · \(proposal.modelLabel)", color: NX.C.accent, size: 10)
+                Spacer()
+                if let credits = proposal.credits {
+                    MetaLabel("\(Int(credits)) cr", color: NX.C.ink, size: 10)
+                }
+            }
+            Text(proposal.prompt)
+                .font(NX.F.mono(13))
+                .tracking(0.6)
+                .foregroundStyle(NX.C.ink2)
+                .lineLimit(6)
+            Text("Reply “run it” to start this \(proposal.kind), or tell the agent what to change.")
+                .font(NX.F.body(13))
+                .foregroundStyle(NX.C.ink3)
+        }
+        .padding(14)
+        .background(NX.C.surface)
+        .overlay(Rectangle().strokeBorder(NX.G.frame, lineWidth: 1))
     }
 }
