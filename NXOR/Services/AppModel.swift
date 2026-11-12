@@ -36,6 +36,7 @@ final class AppModel {
     var selectedTier = "fast"
     var sidebarOpen = false
     var launchSheet: String?
+    var launchSidebar = false
     var launchPreset: String?
     var pendingAttachments: [LibraryItem] = []
     var showAccount = false
@@ -56,7 +57,7 @@ final class AppModel {
         let defaults = UserDefaults.standard
         if let raw = defaults.string(forKey: "route"), let route = Route(rawValue: raw) { self.route = route }
         currentChatID = defaults.string(forKey: "chat")
-        sidebarOpen = defaults.bool(forKey: "sidebar")
+        launchSidebar = defaults.bool(forKey: "sidebar")
         launchSheet = defaults.string(forKey: "sheet")
         launchPreset = defaults.string(forKey: "preset")
         if defaults.bool(forKey: "demo") { enterDemo() }

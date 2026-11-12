@@ -56,6 +56,12 @@ struct RootView: View {
                 }
             }
         }
+        .task {
+            guard model.launchSidebar else { return }
+            model.launchSidebar = false
+            try? await Task.sleep(for: .milliseconds(1200))
+            withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
+        }
     }
 
     @ViewBuilder
