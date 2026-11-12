@@ -1,0 +1,3 @@
+commit=6fa4be5506d3e9f31248de7ea346b6ec1dda9931
+build_status=0
+run=https://github.com/abus777/nxorapp/actions/runs/43302423796

@@ -1,0 +1,15 @@
+01-login alive
+02-home alive
+03-capabilities alive
+04-sidebar alive
+05-chat-video alive
+06-chat-image alive
+07-studio alive
+08-library alive
+09-presets alive
+10-billing alive
+11-settings alive
+12-preset-detail alive
+13-studio-refs alive
+14-library-select alive
+15-chat-proposal alive
