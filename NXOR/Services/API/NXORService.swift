@@ -197,11 +197,69 @@ enum NXORService {
 }
 
 struct GenerateBody: Encodable {
-    let modelSlug: String
-    let prompt: String
+    var modelSlug: String?
+    var prompt: String?
     var aspectRatio: String?
     var projectId: String?
     var idempotencyKey: String?
+    var presetSlug: String?
+    var presetInputs: [String: [String]]?
+    var presetDims: [String: String]?
+    var presetUserPrompt: String?
+}
+
+struct UploadResponse: Decodable {
+    let fileKey: String?
+    let key: String?
+    let url: String?
+
+    var resolvedKey: String? { fileKey ?? key }
+}
+
+struct PresetDetail: Decodable {
+    struct Input: Decodable, Hashable {
+        let key: String
+        let label: String
+        let requirement: String
+        let hint: String?
+        let maxFiles: Int?
+        let accepts: String
+        let upload: String
+    }
+    struct Option: Decodable, Hashable {
+        let dims: [String: String]
+        let credits: Double?
+        let aspectRatio: String?
+    }
+    let slug: String
+    let kind: String
+    let name: String
+    let description: String?
+    let previewImageUrl: URL?
+    let previewVideoUrl: URL?
+    let inputs: [Input]
+    let dimensions: [ModelDimension]
+    let options: [Option]
+    let userPrompt: String?
+    let userPromptPlaceholder: String?
+}
+
+extension NXORService {
+    static func preset(_ slug: String) async throws -> PresetDetail { try await api.get("presets/\(slug)") }
+
+    static func uploadChatAttachment(data: Data) async throws -> String {
+        let r: UploadResponse = try await api.upload("chat/uploads/attachment", data: data, filename: "photo.jpg", mimeType: "image/jpeg")
+        guard let url = r.url else { throw APIError(status: 500, code: "upload", message: "The upload didn't return a URL.") }
+        return url
+    }
+
+    /// Uploads an image to one of the `/v1/{images|videos}/uploads/...` paths a preset input names.
+    static func uploadSource(path: String, data: Data, filename: String, mimeType: String) async throws -> String {
+        let clean = path.hasPrefix("/v1/") ? String(path.dropFirst(4)) : path
+        let r: UploadResponse = try await api.upload(clean, data: data, filename: filename, mimeType: mimeType)
+        guard let key = r.resolvedKey else { throw APIError(status: 500, code: "upload", message: "The upload didn't return a file key.") }
+        return key
+    }
 }
 
 struct QuoteResponse: Decodable { let credits: Double }

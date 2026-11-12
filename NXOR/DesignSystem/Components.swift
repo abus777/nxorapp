@@ -32,6 +32,7 @@ struct MetaLabel: View {
             .tracking(size * 0.2)
             .foregroundStyle(color)
             .lineLimit(1)
+            .minimumScaleFactor(0.7)
     }
 }
 

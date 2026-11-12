@@ -39,16 +39,31 @@ struct MessageView: View {
     var body: some View {
         switch message.role {
         case .user:
-            HStack {
-                Spacer(minLength: 48)
-                Text(message.text)
-                    .font(NX.F.body(16))
-                    .foregroundStyle(NX.C.ink)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(NX.C.raised)
-                    .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+            VStack(alignment: .trailing, spacing: 8) {
+                if !message.files.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(message.files, id: \.self) { url in
+                            AsyncImage(url: url) { phase in
+                                if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                            }
+                            .frame(width: 72, height: 72)
+                            .clipped()
+                            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                        }
+                    }
+                }
+                HStack {
+                    Spacer(minLength: 48)
+                    Text(message.text)
+                        .font(NX.F.body(16))
+                        .foregroundStyle(NX.C.ink)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(NX.C.raised)
+                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant:
             VStack(alignment: .leading, spacing: 16) {
                 MetaLabel("NXOR", color: NX.C.ink3)

@@ -158,6 +158,7 @@ final class AppModel {
                     text: m.content ?? "",
                     answeredBy: m.answeredBy?.name
                 )
+                message.files = (m.attachments ?? []).compactMap(URL.init(string:))
                 message.generations = (m.generationRefs ?? []).map { ref in
                     GenerationCard(
                         generationId: ref.generationId,
@@ -182,7 +183,7 @@ final class AppModel {
     // MARK: Sending
 
     @MainActor
-    func send(_ text: String) {
+    func send(_ text: String, attachments: [String] = []) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isStreaming else { return }
 
@@ -191,12 +192,14 @@ final class AppModel {
             chats.insert(ChatThread(id: localID, title: String(trimmed.prefix(48)), messages: []), at: 0)
             currentChatID = localID
         }
-        append(ChatMessage(role: .user, text: trimmed), to: localID)
+        var userMessage = ChatMessage(role: .user, text: trimmed)
+        userMessage.files = attachments.compactMap(URL.init(string:))
+        append(userMessage, to: localID)
 
         isStreaming = true
         streamTask = Task { @MainActor in
             if auth == .live {
-                await streamLive(trimmed, chatID: localID)
+                await streamLive(trimmed, attachments: attachments, chatID: localID)
             } else {
                 await streamDemo(chatID: localID)
             }
@@ -215,7 +218,7 @@ final class AppModel {
     }
 
     @MainActor
-    private func streamLive(_ text: String, chatID: String) async {
+    private func streamLive(_ text: String, attachments: [String], chatID: String) async {
         var chatID = chatID
         let serverID = chatID.hasPrefix("local-") ? nil : chatID
         streamingStage = .thinking
@@ -223,7 +226,7 @@ final class AppModel {
         var appended = false
 
         do {
-            for try await event in ChatStream.send(sessionId: serverID, body: ChatSendBody(tier: selectedTier, content: text)) {
+            for try await event in ChatStream.send(sessionId: serverID, body: ChatSendBody(tier: selectedTier, content: text, attachments: attachments)) {
                 switch event {
                 case let .start(sessionId, _):
                     if sessionId != chatID, let i = chats.firstIndex(where: { $0.id == chatID }) {

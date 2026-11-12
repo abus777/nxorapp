@@ -87,6 +87,23 @@ final class APIClient {
         _ = try await self.data(for: makeRequest(path, method: "POST", body: body))
     }
 
+    func upload<T: Decodable>(_ path: String, data fileData: Data, filename: String, mimeType: String, fields: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
+        let boundary = "nxor-\(UUID().uuidString)"
+        var request = try makeRequest(path, method: "POST")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        var body = Data()
+        for (name, value) in fields {
+            body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".utf8))
+        }
+        body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\nContent-Type: \(mimeType)\r\n\r\n".utf8))
+        body.append(fileData)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+        request.httpBody = body
+        request.timeoutInterval = 180
+        let (data, _) = try await self.data(for: request)
+        return try decoder.decode(T.self, from: data)
+    }
+
     func refresh() async -> Bool {
         if let task = refreshTask { return await task.value }
         let task = Task<Bool, Never> {

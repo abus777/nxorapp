@@ -3,6 +3,7 @@ import SwiftUI
 struct PresetsScreen: View {
     @Environment(AppModel.self) private var model
     @State private var filter = "all"
+    @State private var selected: PresetSummary?
 
     private let filters: [(String, String)] = [
         ("all", "All"), ("portrait", "Portrait"), ("product", "Product"),
@@ -40,11 +41,17 @@ struct PresetsScreen: View {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 18) {
                     ForEach(items) { preset in
                         PresetTile(preset: preset)
+                            .contentShape(Rectangle())
+                            .onTapGesture { selected = preset }
                     }
                 }
                 .padding(.horizontal, 16)
             }
             .padding(.vertical, 12)
+        }
+        .sheet(item: $selected) { preset in
+            PresetDetailView(preset: preset)
+                .presentationDragIndicator(.visible)
         }
     }
 }

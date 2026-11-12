@@ -1,9 +1,12 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct ChatScreen: View {
     @Environment(AppModel.self) private var model
     @State private var draft = ""
     @State private var showCapabilities = false
+    @State private var attachments: [ChatAttachment] = []
     @FocusState private var composerFocused: Bool
 
     var body: some View {
@@ -20,10 +23,12 @@ struct ChatScreen: View {
                 )
             }
 
-            Composer(text: $draft, focused: $composerFocused) {
+            Composer(text: $draft, attachments: $attachments, focused: $composerFocused) {
                 let text = draft
+                let urls = attachments.compactMap(\.url)
                 draft = ""
-                model.send(text)
+                attachments = []
+                model.send(text, attachments: urls)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
@@ -31,7 +36,10 @@ struct ChatScreen: View {
         .onAppear {
             if model.launchSheet == "capabilities" {
                 model.launchSheet = nil
-                showCapabilities = true
+                Task {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    showCapabilities = true
+                }
             }
         }
         .sheet(isPresented: $showCapabilities) {
@@ -138,14 +146,41 @@ struct CapabilityCard: View {
 struct Composer: View {
     @Environment(AppModel.self) private var model
     @Binding var text: String
+    @Binding var attachments: [ChatAttachment]
     var focused: FocusState<Bool>.Binding
     let onSend: () -> Void
     @State private var showTiers = false
+    @State private var pickerItems: [PhotosPickerItem] = []
 
-    private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSend: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !model.isStreaming
+            && !attachments.contains { $0.uploading }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if !attachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(attachments) { item in
+                            Image(uiImage: item.image)
+                                .resizable().scaledToFill()
+                                .frame(width: 58, height: 58)
+                                .clipped()
+                                .overlay { if item.uploading { ZStack { Color.black.opacity(0.5); ProgressView().tint(NX.C.accent) } } }
+                                .overlay(alignment: .topTrailing) {
+                                    Button { attachments.removeAll { $0.id == item.id } } label: {
+                                        Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                                            .foregroundStyle(NX.C.ink).frame(width: 18, height: 18).background(Color.black.opacity(0.7))
+                                    }
+                                }
+                                .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                        }
+                    }
+                }
+            }
+
             TextField("", text: $text, prompt: Text("Try: Show me trendy presets").foregroundColor(NX.C.muted), axis: .vertical)
                 .font(NX.F.body(17))
                 .foregroundStyle(NX.C.ink)
@@ -153,14 +188,17 @@ struct Composer: View {
                 .focused(focused)
 
             HStack(spacing: 10) {
-                Button {} label: {
+                PhotosPicker(selection: $pickerItems, maxSelectionCount: 4, matching: .images) {
                     Image(systemName: "plus")
                         .font(.system(size: 16, weight: .regular))
                         .foregroundStyle(NX.C.ink)
                         .frame(width: 42, height: 42)
                         .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
                 }
-                .buttonStyle(PressStyle())
+                .onChange(of: pickerItems) { _, items in
+                    pickerItems = []
+                    for item in items { Task { await add(item) } }
+                }
 
                 Button { showTiers.toggle() } label: {
                     HStack(spacing: 10) {
@@ -180,12 +218,43 @@ struct Composer: View {
                 }
 
                 Spacer()
-                SendButton(enabled: canSend, action: onSend)
+                if model.isStreaming {
+                    Button { model.stop() } label: {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(NX.C.ink)
+                            .frame(width: 52, height: 46)
+                            .background(NX.C.raised, in: CutCorner(cut: 12))
+                            .overlay(CutCorner(cut: 12).strokeBorder(NX.C.line2, lineWidth: 1))
+                    }
+                    .buttonStyle(PressStyle())
+                } else {
+                    SendButton(enabled: canSend, action: onSend)
+                }
             }
         }
         .padding(16)
         .background(NX.C.surface)
         .overlay(Rectangle().strokeBorder(focused.wrappedValue ? NX.C.line2 : NX.C.line, lineWidth: 1))
+    }
+
+    @MainActor
+    private func add(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return }
+        let attachment = ChatAttachment(image: image, uploading: model.auth == .live)
+        attachments.append(attachment)
+        guard model.auth == .live else { return }
+        let jpeg = image.jpegData(compressionQuality: 0.85) ?? data
+        let url = try? await NXORService.uploadChatAttachment(data: jpeg)
+        if let i = attachments.firstIndex(where: { $0.id == attachment.id }) {
+            if let url {
+                attachments[i].url = url
+                attachments[i].uploading = false
+            } else {
+                attachments.remove(at: i)
+                model.errorMessage = "Couldn't upload the photo. Try again."
+            }
+        }
     }
 }
 
@@ -284,4 +353,11 @@ struct CapabilitiesSheet: View {
         }
         .background(NX.C.surface)
     }
+}
+
+struct ChatAttachment: Identifiable {
+    let id = UUID()
+    let image: UIImage
+    var uploading: Bool
+    var url: String? = nil
 }

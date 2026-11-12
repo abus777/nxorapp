@@ -151,7 +151,7 @@ struct SidebarView: View {
 
             HStack(spacing: 8) {
                 footerButton("Presets", count: model.presets.count, icon: nil) { model.open(.presets) }
-                footerButton("Library", count: 91, icon: "folder") { model.open(.library) }
+                footerButton("Library", count: nil, icon: "folder") { model.open(.library) }
                 Button { model.open(.help) } label: {
                     Image(systemName: "info.circle").foregroundStyle(NX.C.ink3)
                         .frame(width: 46, height: 46)
@@ -161,12 +161,12 @@ struct SidebarView: View {
         }
     }
 
-    private func footerButton(_ title: String, count: Int, icon: String?, action: @escaping () -> Void) -> some View {
+    private func footerButton(_ title: String, count: Int?, icon: String?, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
                 if let icon { Image(systemName: icon).font(.system(size: 12)) }
                 Text(title.uppercased()).font(NX.F.mono(11, .semibold)).tracking(1.8)
-                Text("\(count)").font(NX.F.mono(11)).foregroundStyle(NX.C.muted)
+                if let count { Text("\(count)").font(NX.F.mono(11)).foregroundStyle(NX.C.muted) }
             }
             .foregroundStyle(NX.C.ink)
             .frame(maxWidth: .infinity)

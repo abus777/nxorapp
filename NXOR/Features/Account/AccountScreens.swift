@@ -13,11 +13,11 @@ struct BillingScreen: View {
                     .font(NX.F.body(16)).foregroundStyle(NX.C.ink2)
 
                 HStack(spacing: 0) {
-                    stat("Current balance", Int(model.account.available).formatted(), unit: "credits", gradient: true)
+                    stat("Balance", Int(model.account.available).formatted(), unit: nil, gradient: true)
                     Rectangle().fill(NX.C.line).frame(width: 1)
                     stat("Reserved", Int(model.account.reserved).formatted(), unit: nil, gradient: false)
                     Rectangle().fill(NX.C.line).frame(width: 1)
-                    stat("Monthly grant", Int(model.account.monthlyGrant).formatted(), unit: nil, gradient: false)
+                    stat("Monthly", Int(model.account.monthlyGrant).formatted(), unit: nil, gradient: false)
                 }
                 .frame(height: 96)
                 .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
