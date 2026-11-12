@@ -40,6 +40,12 @@ final class AppModel {
     var streamingStage: ChatStage? = nil
     var isStreaming = false
     var errorMessage: String?
+    var projects: [Project] = []
+    var assetIndex: [String: LibraryItem] = [:]
+    var currentProjectID: String?
+    var lastProjectHint: String?
+
+    var currentProject: Project? { projects.first { $0.id == currentProjectID } }
 
     private var streamTask: Task<Void, Never>?
 
@@ -72,6 +78,7 @@ final class AppModel {
         do {
             let me = try await NXORService.me()
             account = me.account
+            lastProjectHint = me.user.lastProjectId
             auth = .live
             await loadLive()
         } catch {
@@ -82,6 +89,8 @@ final class AppModel {
     func enterDemo() {
         account = MockData.account
         chats = MockData.chats
+        projects = MockData.projects
+        currentProjectID = MockData.projects.first?.id
         auth = .demo
     }
 
@@ -89,7 +98,9 @@ final class AppModel {
     func didSignIn() async {
         auth = .checking
         do {
-            account = try await NXORService.me().account
+            let me = try await NXORService.me()
+            account = me.account
+            lastProjectHint = me.user.lastProjectId
             auth = .live
             route = .chat
             currentChatID = nil
@@ -112,6 +123,7 @@ final class AppModel {
 
     @MainActor
     func loadLive() async {
+        await loadProjects()
         async let sessions = try? NXORService.sessions()
         async let tiers = try? NXORService.tiers()
         async let caps = try? NXORService.capabilities()
@@ -134,6 +146,64 @@ final class AppModel {
         guard auth == .live, let balance = try? await NXORService.balance() else { return }
         account.available = balance.available
         account.reserved = balance.reserved
+    }
+
+    // MARK: Projects (folders)
+
+    @MainActor
+    func loadProjects() async {
+        guard auth == .live, let list = try? await NXORService.projects() else { return }
+        projects = list
+        if currentProjectID == nil || !list.contains(where: { $0.id == currentProjectID }) {
+            currentProjectID = list.first { $0.id == lastProjectHint }?.id ?? list.first { $0.isDefault }?.id ?? list.first?.id
+        }
+    }
+
+    @MainActor
+    func createProject(_ name: String) async -> Project? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if auth != .live {
+            let project = Project(id: UUID().uuidString, name: trimmed, isDefault: false)
+            projects.append(project)
+            return project
+        }
+        do {
+            let project = try await NXORService.createProject(name: trimmed)
+            projects.append(project)
+            return project
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    @MainActor
+    func renameProject(_ project: Project, to name: String) async {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let i = projects.firstIndex(of: project) else { return }
+        let old = projects[i].name
+        projects[i].name = trimmed
+        guard auth == .live else { return }
+        do {
+            try await NXORService.renameProject(id: project.id, name: trimmed)
+        } catch {
+            if let j = projects.firstIndex(where: { $0.id == project.id }) { projects[j].name = old }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    func deleteProject(_ project: Project) async {
+        guard !project.isDefault else { return }
+        if auth == .live {
+            do { try await NXORService.deleteProject(id: project.id) } catch {
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
+        projects.removeAll { $0.id == project.id }
+        if currentProjectID == project.id { currentProjectID = projects.first { $0.isDefault }?.id ?? projects.first?.id }
     }
 
     // MARK: Navigation

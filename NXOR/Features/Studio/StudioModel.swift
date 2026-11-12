@@ -14,10 +14,20 @@ final class StudioModel {
     var submitting = false
     var jobs: [GenerationCard] = []
     var error: String?
+    var references: [LibraryItem] = []
 
     private var quoteTask: Task<Void, Never>?
 
-    private static let textOps: Set<String> = ["text-to-image", "text-to-video"]
+    /// The operation the current inputs call for: text only, or with reference images.
+    var wantedOperation: String {
+        let imageRefs = references.contains { !$0.isVideo }
+        switch (kind, imageRefs) {
+        case (.image, false): return "text-to-image"
+        case (.image, true): return "image-to-image"
+        case (.video, false): return "text-to-video"
+        case (.video, true): return "image-to-video"
+        }
+    }
 
     func families(_ app: AppModel) -> [ModelFamily] {
         let all = kind == .image ? app.imageModels : app.videoModels
@@ -25,11 +35,40 @@ final class StudioModel {
     }
 
     func textVariants(_ family: ModelFamily) -> [ModelVariant] {
-        family.variants.filter { v in
-            guard let op = v.dims["operation"] else { return true }
-            return Self.textOps.contains(op)
+        let op = wantedOperation
+        return family.variants.filter { v in
+            guard let variantOp = v.dims["operation"] else { return true }
+            return variantOp == op
         }
     }
+
+    var maxReferences: Int { 8 }
+
+    func addReference(_ item: LibraryItem, app: AppModel) {
+        guard !item.isVideo, item.fileKey != nil, !references.contains(where: { $0.id == item.id }), references.count < maxReferences else { return }
+        references.append(item)
+        reselect(app)
+    }
+
+    func removeReference(_ item: LibraryItem, app: AppModel) {
+        references.removeAll { $0.id == item.id }
+        reselect(app)
+    }
+
+    private func reselect(_ app: AppModel) {
+        if let family = family(app) {
+            let variants = textVariants(family)
+            if !variants.contains(where: { $0.dims == dims }) {
+                let best = variants.max { a, b in score(a) < score(b) } ?? variants.first
+                if let best { dims = best.dims }
+            }
+        } else if let first = preferredFamily(app) {
+            select(family: first, app: app)
+            return
+        }
+        refreshQuote(app)
+    }
+
 
     func family(_ app: AppModel) -> ModelFamily? {
         families(app).first { $0.family == familyID }
@@ -101,7 +140,8 @@ final class StudioModel {
             quote = kind == .image ? 25 : 450
             return
         }
-        let body = GenerateBody(modelSlug: slug, prompt: prompt.isEmpty ? "a" : prompt, aspectRatio: aspect)
+        var body = GenerateBody(modelSlug: slug, prompt: prompt.isEmpty ? "a" : prompt, aspectRatio: aspect)
+        attachSources(to: &body, app: app)
         let kindName = kind.rawValue
         quoting = true
         quoteTask = Task { @MainActor in
@@ -153,7 +193,8 @@ final class StudioModel {
         }
 
         do {
-            let body = GenerateBody(modelSlug: slug, prompt: text, aspectRatio: aspect, idempotencyKey: UUID().uuidString)
+            var body = GenerateBody(modelSlug: slug, prompt: text, aspectRatio: aspect, projectId: app.currentProjectID, idempotencyKey: UUID().uuidString)
+            attachSources(to: &body, app: app)
             let id = try await NXORService.generate(kind: kind.rawValue, body: body)
             card.generationId = id
             jobs.insert(card, at: 0)
@@ -180,6 +221,17 @@ final class StudioModel {
                     return
                 }
             }
+        }
+    }
+
+    private func attachSources(to body: inout GenerateBody, app: AppModel) {
+        let keys = references.filter { !$0.isVideo }.compactMap(\.fileKey)
+        guard !keys.isEmpty else { return }
+        let limit = max(1, variant(app)?.body.maxSourceImages ?? 1)
+        if limit > 1 {
+            body.sourceFileKeys = Array(keys.prefix(limit))
+        } else {
+            body.sourceFileKey = keys.first
         }
     }
 }

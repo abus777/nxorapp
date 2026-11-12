@@ -81,6 +81,7 @@ struct ChatSessionDetail: Decodable {
 }
 
 struct MediaOutput: Decodable, Hashable {
+    let key: String?
     let url: URL?
     let width: Int?
     let height: Int?
@@ -111,8 +112,39 @@ struct Generation: Decodable, Identifiable, Hashable {
 
 struct Project: Decodable, Identifiable, Hashable {
     let id: String
-    let name: String
+    var name: String
     let isDefault: Bool
+}
+
+struct Reference: Decodable, Identifiable, Hashable {
+    let id: String
+    let projectId: String?
+    let kind: String
+    let fileKey: String
+    let url: URL?
+    let thumbnailUrl: URL?
+    let width: Int?
+    let height: Int?
+    let durationSeconds: Double?
+    let originalName: String?
+    let createdAt: String
+}
+
+struct ReferencePage: Decodable {
+    let items: [Reference]
+    let nextCursor: String?
+}
+
+struct LibraryRef: Codable, Hashable {
+    let kind: String
+    let id: String
+}
+
+struct LibraryOpResult: Decodable {
+    struct Failed: Decodable { let kind: String?; let id: String?; let code: String? }
+    let moved: [LibraryRef]?
+    let deleted: [LibraryRef]?
+    let failed: [Failed]?
 }
 
 struct CreditsBalance: Decodable {
@@ -164,6 +196,38 @@ enum NXORService {
 
     // MARK: Library
     static func projects() async throws -> [Project] { try await api.get("projects") }
+
+    static func createProject(name: String) async throws -> Project {
+        try await api.post("projects", body: ["name": name] as [String: String])
+    }
+
+    static func renameProject(id: String, name: String) async throws {
+        _ = try await api.data(for: api.makeRequest("projects/\(id)", method: "PATCH", body: ["name": name] as [String: String]))
+    }
+
+    static func deleteProject(id: String) async throws {
+        _ = try await api.data(for: api.makeRequest("projects/\(id)", method: "DELETE"))
+    }
+
+    static func references(projectId: String?, limit: Int = 60) async throws -> ReferencePage {
+        var q = ["limit": "\(limit)"]
+        if let projectId { q["projectId"] = projectId }
+        return try await api.get("references", query: q)
+    }
+
+    static func uploadReference(data: Data, filename: String, mimeType: String, projectId: String?) async throws -> Reference {
+        var fields: [String: String] = [:]
+        if let projectId { fields["projectId"] = projectId }
+        return try await api.upload("references", data: data, filename: filename, mimeType: mimeType, fields: fields)
+    }
+
+    static func libraryMove(_ items: [LibraryRef], to projectId: String) async throws -> LibraryOpResult {
+        try await api.post("library/move", body: MoveBody(items: items, projectId: projectId))
+    }
+
+    static func libraryDelete(_ items: [LibraryRef]) async throws -> LibraryOpResult {
+        try await api.post("library/delete", body: DeleteBody(items: items))
+    }
     static func images(page: Int = 1, pageSize: Int = 30, projectId: String? = nil) async throws -> Page<Generation> {
         var q = ["page": "\(page)", "pageSize": "\(pageSize)"]
         if let projectId { q["projectId"] = projectId }
@@ -206,6 +270,8 @@ struct GenerateBody: Encodable {
     var presetInputs: [String: [String]]?
     var presetDims: [String: String]?
     var presetUserPrompt: String?
+    var sourceFileKey: String?
+    var sourceFileKeys: [String]?
 }
 
 struct UploadResponse: Decodable {
@@ -279,3 +345,12 @@ struct EnhanceBody: Encodable {
     let modelSlug: String?
 }
 struct EnhanceResponse: Decodable { let prompt: String }
+
+struct MoveBody: Encodable {
+    let items: [LibraryRef]
+    let projectId: String
+}
+
+struct DeleteBody: Encodable {
+    let items: [LibraryRef]
+}

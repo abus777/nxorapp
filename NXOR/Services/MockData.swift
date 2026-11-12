@@ -17,6 +17,12 @@ enum MockData {
         monthlyGrant: 34400
     )
 
+    static let projects: [Project] = [
+        Project(id: "p-default", name: "My work", isDefault: true),
+        Project(id: "p-grain", name: "Grain", isDefault: false),
+        Project(id: "p-cars", name: "Cars", isDefault: false),
+    ]
+
     static let chats: [ChatThread] = [
         ChatThread(id: "c1", title: "Coffee ad at sunset in Dubai", messages: [
             .init(role: .user, text: "Make a video ad for a coffee shop in Dubai at sunset from this photo"),
