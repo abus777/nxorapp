@@ -141,6 +141,7 @@ struct SettingsScreen: View {
                     }
                 }
                 .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -171,6 +172,7 @@ struct SettingsScreen: View {
                     }
                 }
                 .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
 
                 VStack(spacing: 0) {

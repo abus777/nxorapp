@@ -133,7 +133,7 @@ struct LibraryScreen: View {
             PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
                 HStack(spacing: 8) {
                     if library.uploading > 0 { ProgressView().controlSize(.small) } else { Image(systemName: "arrow.up") }
-                    Text("UPLOAD").font(NX.F.mono(12, .semibold)).tracking(2)
+                    Text("UPLOAD").font(NX.F.mono(12, .semibold)).tracking(2).fixedSize()
                 }
                 .foregroundStyle(NX.C.ink)
                 .padding(.horizontal, 12)
