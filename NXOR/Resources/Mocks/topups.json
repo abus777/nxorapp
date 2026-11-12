@@ -1,0 +1,23 @@
+[
+ {
+  "slug": "small",
+  "name": "Small",
+  "tokenAmount": 3000,
+  "priceAmount": "9.99",
+  "currency": "USD"
+ },
+ {
+  "slug": "medium",
+  "name": "Medium",
+  "tokenAmount": 12700,
+  "priceAmount": "22.99",
+  "currency": "USD"
+ },
+ {
+  "slug": "large",
+  "name": "Large",
+  "tokenAmount": 34400,
+  "priceAmount": "58.90",
+  "currency": "USD"
+ }
+]

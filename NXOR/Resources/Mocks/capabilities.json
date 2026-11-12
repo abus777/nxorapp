@@ -1,0 +1,200 @@
+[
+ {
+  "id": "preset",
+  "group": "presets",
+  "icon": "sparkles",
+  "card": true,
+  "titleKey": "preset.title",
+  "descriptionKey": "preset.description",
+  "exampleKeys": [
+   "preset.example"
+  ],
+  "title": "Use a preset",
+  "promptLine": "ready-made looks and effects (trendy, viral, ad styles) with the user’s own photo or video",
+  "tiers": [
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "video",
+  "group": "create",
+  "icon": "video",
+  "card": true,
+  "titleKey": "video.title",
+  "descriptionKey": "video.description",
+  "exampleKeys": [
+   "video.example"
+  ],
+  "title": "Make a video",
+  "promptLine": "create a short video from a text description or from a photo",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "image",
+  "group": "create",
+  "icon": "image",
+  "card": true,
+  "titleKey": "image.title",
+  "descriptionKey": "image.description",
+  "exampleKeys": [
+   "image.example"
+  ],
+  "title": "Make an image",
+  "promptLine": "create an image from a text description",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "web_search",
+  "group": "research",
+  "icon": "globe",
+  "card": true,
+  "titleKey": "web_search.title",
+  "descriptionKey": "web_search.description",
+  "exampleKeys": [
+   "web_search.example"
+  ],
+  "title": "Search the web",
+  "promptLine": "look up current news and facts online and answer with sources",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "files",
+  "group": "files",
+  "icon": "file",
+  "card": true,
+  "titleKey": "files.title",
+  "descriptionKey": "files.description",
+  "exampleKeys": [
+   "files.example"
+  ],
+  "title": "Work with files",
+  "promptLine": "read attached PDF, Word, Excel, PowerPoint and CSV files, and make new ones",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "image_edit",
+  "group": "edit",
+  "icon": "wand",
+  "card": false,
+  "titleKey": "image_edit.title",
+  "descriptionKey": "image_edit.description",
+  "exampleKeys": [
+   "image_edit.example"
+  ],
+  "title": "Edit an image",
+  "promptLine": "change a photo or an earlier picture: refer to it with @image and say what to change",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "finalize",
+  "group": "create",
+  "icon": "maximize",
+  "card": false,
+  "titleKey": "finalize.title",
+  "descriptionKey": "finalize.description",
+  "exampleKeys": [
+   "finalize.example"
+  ],
+  "title": "Final 4K render",
+  "promptLine": "turn a draft video into a final high-resolution version",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "prompt_writing",
+  "group": "research",
+  "icon": "pen",
+  "card": false,
+  "titleKey": "prompt_writing.title",
+  "descriptionKey": "prompt_writing.description",
+  "exampleKeys": [
+   "prompt_writing.example"
+  ],
+  "title": "Write a prompt",
+  "promptLine": "write ready-to-use prompts for any image or video model",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "models",
+  "group": "create",
+  "icon": "layers",
+  "card": false,
+  "titleKey": "models.title",
+  "descriptionKey": "models.description",
+  "exampleKeys": [
+   "models.example"
+  ],
+  "title": "Pick a model",
+  "promptLine": "use a specific image or video model when the user names one",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ },
+ {
+  "id": "documents",
+  "group": "files",
+  "icon": "file-text",
+  "card": false,
+  "titleKey": "documents.title",
+  "descriptionKey": "documents.description",
+  "exampleKeys": [
+   "documents.example"
+  ],
+  "title": "Answer from a document",
+  "promptLine": "summarise or answer questions about a document the user attaches",
+  "tiers": [
+   "fast",
+   "smart",
+   "genius"
+  ],
+  "available": true,
+  "reason": null
+ }
+]

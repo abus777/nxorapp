@@ -1,0 +1,50 @@
+[
+ {
+  "id": "019f3de5-5762-78b3-890c-93b3d26134e8",
+  "slug": "start",
+  "name": "Starter",
+  "anchorMonthlyUsd": "16.00",
+  "anchorYearlyUsd": "192.00",
+  "firstMonthUsd": null,
+  "priceMonthlyUsd": "9.99",
+  "priceYearlyUsd": "95.88",
+  "lockedMonthlyUsd": "8.99",
+  "monthlyTokenGrant": 4000,
+  "freeGenerationLimit": null,
+  "freeChatMessageLimit": null,
+  "parallelGenerations": false,
+  "prioritySupport": false
+ },
+ {
+  "id": "019f3de5-576e-7e22-9129-70482f00bba6",
+  "slug": "pro",
+  "name": "Professional",
+  "anchorMonthlyUsd": "34.00",
+  "anchorYearlyUsd": "408.00",
+  "firstMonthUsd": "18.99",
+  "priceMonthlyUsd": "22.99",
+  "priceYearlyUsd": "215.88",
+  "lockedMonthlyUsd": null,
+  "monthlyTokenGrant": 12700,
+  "freeGenerationLimit": null,
+  "freeChatMessageLimit": null,
+  "parallelGenerations": true,
+  "prioritySupport": false
+ },
+ {
+  "id": "019f3de5-5771-7160-8e9e-36cd8ce69b7f",
+  "slug": "expert",
+  "name": "Power User",
+  "anchorMonthlyUsd": "86.00",
+  "anchorYearlyUsd": "1032.00",
+  "firstMonthUsd": "47.90",
+  "priceMonthlyUsd": "58.90",
+  "priceYearlyUsd": "562.80",
+  "lockedMonthlyUsd": null,
+  "monthlyTokenGrant": 34400,
+  "freeGenerationLimit": null,
+  "freeChatMessageLimit": null,
+  "parallelGenerations": true,
+  "prioritySupport": true
+ }
+]

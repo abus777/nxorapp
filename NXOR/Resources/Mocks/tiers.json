@@ -1,0 +1,281 @@
+[
+ {
+  "tier": "fast",
+  "locked": false,
+  "requires": null,
+  "files": true,
+  "chat": {
+   "slug": "claude-haiku-5-5-anthropic",
+   "name": "Claude Haiku 5.5",
+   "provider": "Anthropic"
+  },
+  "images": [
+   {
+    "family": "google-nano-banana",
+    "label": "Nano Banana",
+    "provider": "Google"
+   },
+   {
+    "family": "google-nano-banana-2-lite",
+    "label": "Nano Banana 2 Lite",
+    "provider": "Google"
+   },
+   {
+    "family": "gpt-image-1-5",
+    "label": "GPT Image 1.5",
+    "provider": "OpenAI"
+   },
+   {
+    "family": "qwen3",
+    "label": "Qwen3 Image",
+    "provider": "Qwen"
+   },
+   {
+    "family": "qwen-z-image",
+    "label": "Qwen Z-Image",
+    "provider": "Qwen"
+   }
+  ],
+  "videos": [
+   {
+    "family": "kling-2-5-turbo",
+    "label": "Kling 2.5 Turbo",
+    "provider": "Kling"
+   },
+   {
+    "family": "seedance-1-5-pro",
+    "label": "Seedance 1.5 Pro",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "seedance-2-fast",
+    "label": "Seedance 2 Fast",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "seedance-2-mini",
+    "label": "Seedance 2 Mini",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "wan-2-2",
+    "label": "Wan 2.2",
+    "provider": "Wan"
+   }
+  ]
+ },
+ {
+  "tier": "smart",
+  "locked": false,
+  "requires": null,
+  "files": true,
+  "chat": {
+   "slug": "claude-sonnet-5-5-anthropic",
+   "name": "Claude Sonnet 5.5",
+   "provider": "Anthropic"
+  },
+  "images": [
+   {
+    "family": "flux-2-flex",
+    "label": "FLUX 2 Flex",
+    "provider": "Black Forest Labs"
+   },
+   {
+    "family": "google-nano-banana-2",
+    "label": "Nano Banana 2",
+    "provider": "Google"
+   },
+   {
+    "family": "grok-imagine",
+    "label": "Grok Imagine",
+    "provider": "xAI"
+   },
+   {
+    "family": "openai-4o-image",
+    "label": "OpenAI 4o Image",
+    "provider": "OpenAI"
+   },
+   {
+    "family": "qwen2-image-edit",
+    "label": "Qwen2 Image Edit",
+    "provider": "Qwen"
+   },
+   {
+    "family": "qwen3-pro",
+    "label": "Qwen3 Image Pro",
+    "provider": "Qwen"
+   },
+   {
+    "family": "seedream-4-5",
+    "label": "Seedream 4.5",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "seedream-5-0-flash",
+    "label": "Seedream 5.0 Flash",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "seedream-5-0-lite",
+    "label": "Seedream 5.0 Lite",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "wan-2-7-image",
+    "label": "Wan 2.7 Image",
+    "provider": "Wan"
+   }
+  ],
+  "videos": [
+   {
+    "family": "grok-imagine",
+    "label": "Grok Imagine",
+    "provider": "xAI"
+   },
+   {
+    "family": "grok-imagine-1-5",
+    "label": "Grok Imagine 1.5",
+    "provider": "xAI"
+   },
+   {
+    "family": "hailuo-02",
+    "label": "Hailuo 02",
+    "provider": "Other"
+   },
+   {
+    "family": "happyhorse-1",
+    "label": "HappyHorse 1.0",
+    "provider": "HappyHorse"
+   },
+   {
+    "family": "happyhorse-1-1",
+    "label": "HappyHorse 1.1",
+    "provider": "HappyHorse"
+   },
+   {
+    "family": "kling-2-1",
+    "label": "Kling 2.1",
+    "provider": "Kling"
+   },
+   {
+    "family": "kling-2-6",
+    "label": "Kling 2.6",
+    "provider": "Kling"
+   },
+   {
+    "family": "kling-v3-turbo",
+    "label": "Kling V3 Turbo",
+    "provider": "Kling"
+   },
+   {
+    "family": "pixverse-v6",
+    "label": "PixVerse V6",
+    "provider": "PixVerse"
+   },
+   {
+    "family": "runway",
+    "label": "Runway",
+    "provider": "Runway"
+   },
+   {
+    "family": "seedance-2",
+    "label": "Seedance 2",
+    "provider": "ByteDance"
+   },
+   {
+    "family": "wan-2-5",
+    "label": "Wan 2.5",
+    "provider": "Wan"
+   },
+   {
+    "family": "wan-2-6",
+    "label": "Wan 2.6",
+    "provider": "Wan"
+   },
+   {
+    "family": "wan-2-7",
+    "label": "Wan 2.7",
+    "provider": "Wan"
+   },
+   {
+    "family": "wan-3-0",
+    "label": "Wan 3.0",
+    "provider": "Alibaba"
+   }
+  ]
+ },
+ {
+  "tier": "genius",
+  "locked": false,
+  "requires": null,
+  "files": true,
+  "opus": {
+   "locked": false,
+   "requires": null
+  },
+  "chat": {
+   "slug": "claude-sonnet-5-5-anthropic",
+   "name": "Claude Sonnet 5.5",
+   "provider": "Anthropic"
+  },
+  "images": [
+   {
+    "family": "flux-2-pro",
+    "label": "FLUX 2 Pro",
+    "provider": "Black Forest Labs"
+   },
+   {
+    "family": "google-nano-banana-pro",
+    "label": "Nano Banana Pro",
+    "provider": "Google"
+   },
+   {
+    "family": "gpt-image-2",
+    "label": "GPT Image 2",
+    "provider": "OpenAI"
+   },
+   {
+    "family": "gpt-image-2-5-flare",
+    "label": "GPT Image 2.5 Flare",
+    "provider": "OpenAI"
+   },
+   {
+    "family": "gpt-image-2-5-sunburst",
+    "label": "GPT Image 2.5 Sunburst",
+    "provider": "OpenAI"
+   },
+   {
+    "family": "seedream-5-pro",
+    "label": "Seedream 5.0 Pro",
+    "provider": "ByteDance"
+   }
+  ],
+  "videos": [
+   {
+    "family": "gemini-omni-video",
+    "label": "Gemini Omni Video",
+    "provider": "Google"
+   },
+   {
+    "family": "kling-o3",
+    "label": "Kling O3",
+    "provider": "Kling"
+   },
+   {
+    "family": "minimax-h3",
+    "label": "MiniMax H3",
+    "provider": "MiniMax"
+   },
+   {
+    "family": "veo-3-1",
+    "label": "Veo 3.1",
+    "provider": "Google"
+   },
+   {
+    "family": "wan-3-0-prime",
+    "label": "Wan 3.0 Prime",
+    "provider": "Alibaba"
+   }
+  ]
+ }
+]
