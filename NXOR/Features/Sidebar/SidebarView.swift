@@ -141,9 +141,12 @@ struct SidebarView: View {
 
     private var profile: some View {
         VStack(spacing: 12) {
-            Button { model.open(.settings) } label: {
+            Button {
+                withAnimation(NX.Motion.pop) { model.sidebarOpen = false }
+                model.showAccount = true
+            } label: {
                 HStack(spacing: 14) {
-                    StripedAvatar(size: 46)
+                    HatchAvatar(size: 46)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(model.account.name).font(NX.F.body(18, .semibold)).foregroundStyle(NX.C.ink)
                         MetaLabel("\(model.account.planName) · \(Int(model.account.available).formatted()) credits", color: NX.C.ink3, size: 10)

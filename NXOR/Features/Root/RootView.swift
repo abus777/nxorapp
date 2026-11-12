@@ -18,6 +18,12 @@ struct RootView: View {
             }
         }
         .task { await model.bootstrap() }
+        .sheet(isPresented: Binding(get: { model.showAccount }, set: { model.showAccount = $0 })) {
+            AccountSheet()
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(NX.C.surface)
+        }
         .alert("Something went wrong", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
@@ -35,11 +41,8 @@ struct RootView: View {
             ZStack(alignment: .leading) {
                 NX.C.bg.ignoresSafeArea()
 
-                VStack(spacing: 0) {
-                    TopBar()
-                    content
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if model.sidebarOpen {
                     Color.black.opacity(0.6)
@@ -67,29 +70,49 @@ struct RootView: View {
         case .studio:
             StudioScreen()
         case .billing:
-            BillingScreen()
+            VStack(spacing: 0) { PageHeader(title: "Plan"); BillingScreen() }
         case .settings:
-            SettingsScreen()
+            VStack(spacing: 0) { PageHeader(title: "Settings"); SettingsScreen() }
         case .help:
-            HelpScreen()
+            VStack(spacing: 0) { PageHeader(title: "Help"); HelpScreen() }
         }
     }
 }
 
-struct TopBar: View {
+/// Header for full pages: ☰ (web-style chamfered button), a display title, optional count and actions.
+struct PageHeader<Trailing: View>: View {
     @Environment(AppModel.self) private var model
+    let title: String
+    var count: String? = nil
+    var trailing: Trailing
+
+    init(title: String, count: String? = nil, @ViewBuilder trailing: () -> Trailing) {
+        self.title = title
+        self.count = count
+        self.trailing = trailing()
+    }
 
     var body: some View {
-        ZStack {
-            NXLogo(size: 20)
-            HStack {
-                NXIconButton(systemName: "line.3.horizontal") {
-                    withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
-                }
-                Spacer()
+        HStack(spacing: 12) {
+            ChamferIconButton(systemName: "line.3.horizontal", label: "Menu") {
+                withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
             }
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                DisplayTitle(title, size: 28)
+                if let count { MetaLabel(count, color: NX.C.ink2, size: 11) }
+            }
+            Spacer(minLength: 0)
+            trailing
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .frame(height: 60)
+    }
+}
+
+extension PageHeader where Trailing == EmptyView {
+    init(title: String, count: String? = nil) {
+        self.title = title
+        self.count = count
+        self.trailing = EmptyView()
     }
 }

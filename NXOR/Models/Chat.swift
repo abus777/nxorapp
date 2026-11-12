@@ -28,6 +28,7 @@ struct ChatMessage: Identifiable, Hashable {
     var generations: [GenerationCard] = []
     var proposals: [ChatProposal] = []
     var files: [URL] = []
+    var steps: [String] = []
 
     var allGenerations: [GenerationCard] { (generation.map { [$0] } ?? []) + generations }
 }
@@ -59,6 +60,22 @@ enum ChatStage: String {
     case readingLink = "reading_link"
     case waiting
     case searchingPresets = "searching_presets"
+
+    var doneLabel: String {
+        switch self {
+        case .thinking, .reasoning: return "Thought it through"
+        case .searching: return "Searched the web"
+        case .generating: return "Started the generation"
+        case .generatingImage: return "Creating the image"
+        case .generatingVideo: return "Creating the video"
+        case .modelSelected, .routing: return "Picked the model"
+        case .writingPrompt: return "Wrote the prompt"
+        case .runningCode: return "Ran code"
+        case .readingLink: return "Read the link"
+        case .waiting: return "Waited for the result"
+        case .searchingPresets: return "Looked through presets"
+        }
+    }
 
     var label: String {
         switch self {

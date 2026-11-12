@@ -49,7 +49,13 @@ struct LoginView: View {
             .padding(.horizontal, 24)
             .padding(.top, 24)
         }
-        .background(NX.C.bg.ignoresSafeArea())
+        .background(alignment: .top) {
+            ZStack(alignment: .top) {
+                NX.C.bg
+                SpectrumGlow().offset(y: 80)
+            }
+            .ignoresSafeArea()
+        }
         .scrollDismissesKeyboard(.interactively)
         .onReceive(timer) { now = $0 }
         .onAppear { focus = .email }
@@ -57,8 +63,12 @@ struct LoginView: View {
 
     private var emailStep: some View {
         VStack(alignment: .leading, spacing: 0) {
-            DisplayTitle("Welcome back.", size: 34).padding(.bottom, 12)
-            Text("Sign in with your email — no password needed.")
+            MetaLabel("Every engine. One chat.", color: NX.C.accent, size: 11).padding(.bottom, 14)
+            Text("Ask, then\nrender.")
+                .font(NX.F.display(44))
+                .foregroundStyle(NX.G.heroInk)
+                .padding(.bottom, 14)
+            Text("Sign in with your email — we'll send a 6-digit code. No password.")
                 .font(NX.F.body(16)).foregroundStyle(NX.C.ink2)
                 .padding(.bottom, 36)
 
@@ -90,8 +100,15 @@ struct LoginView: View {
             }
             .padding(.vertical, 24)
 
-            NXSecondaryButton(title: "Explore the demo", icon: "sparkle") { model.enterDemo() }
-                .frame(maxWidth: .infinity)
+            Button { model.enterDemo() } label: {
+                Text("EXPLORE WITHOUT AN ACCOUNT")
+                    .font(NX.F.mono(12, .semibold)).tracking(2.2)
+                    .foregroundStyle(NX.C.inkSoft)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .overlay(CutCorner(cut: 12).strokeBorder(NX.C.line2, lineWidth: 1))
+            }
+            .buttonStyle(PressStyle())
         }
     }
 

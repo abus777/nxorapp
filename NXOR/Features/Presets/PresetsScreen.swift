@@ -19,13 +19,10 @@ struct PresetsScreen: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+        PageHeader(title: "Presets", count: "\(model.presets.count)")
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    DisplayTitle("Presets", size: 34)
-                    MetaLabel("\(model.presets.count)", size: 13)
-                }
-                .padding(.horizontal, 16)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -48,6 +45,7 @@ struct PresetsScreen: View {
                 .padding(.horizontal, 16)
             }
             .padding(.vertical, 12)
+        }
         }
         .onAppear {
             if let slug = model.launchPreset {

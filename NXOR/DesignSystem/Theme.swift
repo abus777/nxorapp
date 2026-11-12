@@ -17,6 +17,10 @@ enum NX {
         static let bg = Color(hex: 0x08090A)
         static let surface = Color(hex: 0x0B0D10)
         static let raised = Color(hex: 0x12151A)
+        static let card = Color(hex: 0x0D0F12)
+        static let popover = Color(hex: 0x12161B)
+        static let lineSoft = Color(hex: 0x191B1F)
+        static let track = Color(hex: 0x2A2F36)
         static let line = Color(hex: 0x23272D)
         static let line2 = Color(hex: 0x2E3238)
         static let ink = Color.white
@@ -89,6 +93,14 @@ enum NX {
             ],
             startPoint: .leading, endPoint: .trailing
         )
+        static let selected = LinearGradient(
+            colors: [Color(hex: 0xFDFEFF, opacity: 0.16), Color(hex: 0xC6CEDA, opacity: 0.08)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        static let featured = LinearGradient(
+            colors: [Color(hex: 0x14122B), Color(hex: 0x1B1533), Color(hex: 0x241A3D)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
         static let logo = LinearGradient(
             colors: [Color(hex: 0xF4F7FB), Color(hex: 0xBFC7D2)],
             startPoint: .topLeading, endPoint: .bottomTrailing
@@ -96,14 +108,24 @@ enum NX {
     }
 
     enum F {
+        /// Archivo 900 italic — headlines and the wordmark.
         static func display(_ size: CGFloat) -> Font {
-            .system(size: size, weight: .black).italic()
+            .custom("Archivo-BlackItalic", size: size)
         }
         static func body(_ size: CGFloat = 16, _ weight: Font.Weight = .regular) -> Font {
-            .system(size: size, weight: weight)
+            switch weight {
+            case .black, .heavy, .bold: return .custom("Archivo-Black", size: size)
+            case .semibold, .medium: return .custom("Archivo-SemiBold", size: size)
+            default: return .custom("Archivo-Regular", size: size)
+            }
         }
+        /// IBM Plex Mono — labels, prices, parameters (always uppercase with wide tracking).
         static func mono(_ size: CGFloat = 11, _ weight: Font.Weight = .medium) -> Font {
-            .system(size: size, weight: weight, design: .monospaced)
+            switch weight {
+            case .semibold, .bold, .heavy, .black: return .custom("IBMPlexMono-SemiBold", size: size)
+            case .regular, .light, .thin, .ultraLight: return .custom("IBMPlexMono-Regular", size: size)
+            default: return .custom("IBMPlexMono-Medium", size: size)
+            }
         }
     }
 

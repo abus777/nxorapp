@@ -6,72 +6,44 @@ struct StudioScreen: View {
     @Environment(AppModel.self) private var app
     @State private var studio = StudioModel()
     @State private var library = LibraryModel()
-    @State private var showSettings = false
+    @State private var showModels = false
     @State private var viewing: LibraryItem?
     @State private var refPicker: [PhotosPickerItem] = []
     @State private var dropActive = false
     @FocusState private var promptFocused: Bool
 
+    private var recent: [LibraryItem] {
+        (library.uploads + library.items).filter { studio.kind == .video ? true : !$0.isVideo }
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack(alignment: .top) {
+            NX.C.bg.ignoresSafeArea()
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack(alignment: .firstTextBaseline, spacing: 14) {
-                        DisplayTitle("Library", size: 30)
-                        MetaLabel("\(library.items.count + library.uploads.count + studio.jobs.count) assets", size: 12)
-                        Spacer()
-                        Menu {
-                            ForEach(app.projects) { project in
-                                Button { app.currentProjectID = project.id } label: {
-                                    if project.id == app.currentProjectID { Label(project.name, systemImage: "checkmark") } else { Text(project.name) }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "folder")
-                                Text((app.currentProject?.name ?? "Folder").uppercased()).font(NX.F.mono(11, .semibold)).tracking(1.4).lineLimit(1)
-                                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
-                            }
-                            .foregroundStyle(NX.C.ink2)
-                            .padding(.horizontal, 10).frame(height: 32)
-                            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-                        }
-                    }
-                    Text("Long-press a picture and drag it into References below.")
-                        .font(NX.F.body(13)).foregroundStyle(NX.C.muted)
-
-                    if !studio.jobs.isEmpty {
-                        MetaLabel("This session", color: NX.C.ink3, size: 11)
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(studio.jobs) { job in JobTile(job: job) }
-                        }
-                    }
-
-                    let recent = (library.uploads + library.items).filter { studio.kind == .video ? true : !$0.isVideo }
-                    if !recent.isEmpty {
-                        MetaLabel("Recent", color: NX.C.ink3, size: 11)
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(recent.prefix(12)) { item in
-                                LibraryTile(item: item)
-                                    .onTapGesture { viewing = item }
-                                    .draggable(item.dragPayload) { DragPreview(item: item) }
-                                    .contextMenu {
-                                        if !item.isVideo {
-                                            Button { studio.addReference(item, app: app) } label: {
-                                                Label("Use as reference", systemImage: "plus.square.on.square")
-                                            }
-                                        }
-                                        Button { viewing = item } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
-                                    }
-                            }
-                        }
-                    }
+                    hero
+                    recentStrip
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
             }
             .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 60) }
+            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
 
-            composer
+            FloatingHeader {
+                ChamferIconButton(systemName: "line.3.horizontal", label: "Menu") {
+                    withAnimation(NX.Motion.pop) { app.sidebarOpen = true }
+                }
+            } center: {
+                PillTabs(items: [
+                    .init(value: GenerationCard.Kind.image, icon: "photo", title: "Image", accessibility: "Image"),
+                    .init(value: GenerationCard.Kind.video, icon: "video", title: "Video", accessibility: "Video"),
+                ], selection: Binding(get: { studio.kind }, set: { studio.switchKind($0, app: app) }))
+            } trailing: {
+                ChamferIconButton(systemName: "folder", label: "Library") { app.open(.library) }
+            }
         }
         .task(id: app.currentProjectID) {
             studio.ensureSelection(app)
@@ -93,16 +65,16 @@ struct StudioScreen: View {
             }
         }
         .onChange(of: studio.prompt) { _, _ in studio.refreshQuote(app) }
-        .sheet(isPresented: $showSettings) {
+        .sensoryFeedback(.success, trigger: studio.jobs.filter { $0.status == .completed }.count)
+        .sensoryFeedback(.impact(weight: .medium), trigger: studio.jobs.count)
+        .sheet(isPresented: $showModels) {
             RunSettingsSheet(studio: studio)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(NX.C.surface)
         }
-        .sensoryFeedback(.success, trigger: studio.jobs.filter { $0.status == .completed }.count)
-        .sensoryFeedback(.impact(weight: .medium), trigger: studio.jobs.count)
         .fullScreenCover(item: $viewing) { item in
-            AssetViewer(items: library.items, current: item)
+            AssetViewer(items: recent, current: item)
         }
         .alert("Couldn't start", isPresented: Binding(get: { studio.error != nil }, set: { if !$0 { studio.error = nil } })) {
             Button("OK", role: .cancel) {}
@@ -111,77 +83,169 @@ struct StudioScreen: View {
         }
     }
 
-    private var columns: [GridItem] { [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)] }
+    // MARK: Hero
 
-    private var canSend: Bool {
-        !studio.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !studio.submitting && studio.variant(app) != nil
-    }
-
-    private var referencesTray: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                MetaLabel("References", size: 10)
-                Spacer()
-                MetaLabel("\(studio.references.count)/\(studio.maxReferences)", size: 10)
+    @ViewBuilder
+    private var hero: some View {
+        let job = studio.jobs.first
+        ZStack(alignment: .bottomLeading) {
+            NX.C.surface
+            if let job, job.status == .completed, let url = job.thumbnailUrl ?? job.url {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                }
+            } else if job != nil {
+                if let ref = studio.references.first ?? recent.first {
+                    AsyncImage(url: ref.previewURL) { phase in
+                        if let image = phase.image { image.resizable().scaledToFill().blur(radius: 14).opacity(0.7) } else { Skeleton() }
+                    }
+                } else {
+                    Skeleton()
+                }
+            } else if let latest = recent.first {
+                AsyncImage(url: latest.previewURL) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                }
+                .onTapGesture { viewing = latest }
+            } else {
+                StripedAvatar(size: 400)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(studio.references) { ref in
-                        AsyncImage(url: ref.previewURL) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                        }
-                        .frame(width: 54, height: 54)
-                        .clipped()
-                        .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
-                        .overlay(alignment: .topTrailing) {
-                            Button { withAnimation(NX.Motion.pop) { studio.removeReference(ref, app: app) } } label: {
-                                Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                                    .foregroundStyle(NX.C.ink).frame(width: 18, height: 18).background(Color.black.opacity(0.7))
-                            }
+
+            LinearGradient(colors: [NX.C.bg.opacity(0), NX.C.bg.opacity(0.85)], startPoint: .center, endPoint: .bottom)
+                .allowsHitTesting(false)
+
+            VStack(alignment: .leading, spacing: 10) {
+                if let job {
+                    HStack {
+                        MetaLabel(job.status == .completed ? "Ready" : job.status == .failed ? "Failed · not charged" : "Creating", color: NX.C.ink, size: 11)
+                        Spacer()
+                        if job.status != .completed && job.status != .failed {
+                            ProgressView().controlSize(.small).tint(NX.C.accent)
                         }
                     }
-                    PhotosPicker(selection: $refPicker, maxSelectionCount: 4, matching: .images) {
-                        VStack(spacing: 4) {
-                            if library.uploading > 0 { ProgressView().controlSize(.small) } else { Image(systemName: "plus") }
-                            if studio.references.isEmpty {
-                                Text("ADD OR DROP").font(NX.F.mono(8, .semibold)).tracking(1)
-                            }
+                    if job.status != .completed && job.status != .failed { IndeterminateBar() }
+                    Text("\(job.model) · \(job.credits) cr").font(NX.F.body(13)).foregroundStyle(NX.C.inkSoft)
+                } else if let latest = recent.first {
+                    MetaLabel("Latest", color: NX.C.ink, size: 11)
+                    Text(latest.model).font(NX.F.body(13)).foregroundStyle(NX.C.inkSoft)
+                } else {
+                    MetaLabel("Your results appear here", color: NX.C.ink, size: 11)
+                }
+            }
+            .padding(14)
+        }
+        .frame(height: 248)
+        .clipped()
+        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+    }
+
+    private var recentStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Eyebrow("Recent · hold to drag")
+                Spacer()
+                Button { app.open(.library) } label: {
+                    Text("ALL \(library.items.count + library.uploads.count) ›").font(NX.F.mono(11)).tracking(1.8).foregroundStyle(NX.C.accent)
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(studio.jobs.filter { $0.status == .completed }) { job in
+                        AsyncImage(url: job.thumbnailUrl ?? job.url) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
                         }
-                        .foregroundStyle(dropActive ? NX.C.accent : NX.C.ink2)
-                        .frame(width: studio.references.isEmpty ? 110 : 54, height: 54)
-                        .overlay(Rectangle().strokeBorder(dropActive ? NX.C.accent : NX.C.line2, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                        .frame(width: 64, height: 64).clipped()
+                        .overlay(Rectangle().strokeBorder(NX.C.accent.opacity(0.6), lineWidth: 1))
+                    }
+                    ForEach(recent.prefix(20)) { item in
+                        Color.clear.frame(width: 64, height: 64)
+                            .overlay {
+                                AsyncImage(url: item.previewURL) { phase in
+                                    if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                                }
+                            }
+                            .clipped()
+                            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                            .contentShape(Rectangle())
+                            .onTapGesture { viewing = item }
+                            .draggable(item.dragPayload) { DragPreview(item: item) }
+                            .contextMenu {
+                                if !item.isVideo {
+                                    Button { studio.addReference(item, app: app) } label: { Label("Use as reference", systemImage: "plus.square.on.square") }
+                                }
+                                Button { viewing = item } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
+                            }
+                            .accessibilityLabel(item.prompt)
                     }
                 }
             }
         }
     }
 
+    // MARK: Composer
+
+    private var canSend: Bool {
+        !studio.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !studio.submitting && studio.variant(app) != nil
+    }
+
     private var composer: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 12) {
-                referencesTray
-                TextField("", text: $studio.prompt, prompt: Text(studio.kind == .image ? "Describe the picture" : "Describe the video").foregroundColor(NX.C.muted), axis: .vertical)
-                    .font(NX.F.body(17))
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    ForEach(studio.references) { ref in
+                        AsyncImage(url: ref.previewURL) { phase in
+                            if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                        }
+                        .frame(width: 44, height: 44).clipped()
+                        .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                        .overlay(alignment: .topTrailing) {
+                            Button { withAnimation(NX.Motion.pop) { studio.removeReference(ref, app: app) } } label: {
+                                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(NX.C.ink).frame(width: 16, height: 16).background(Color.black.opacity(0.75))
+                            }
+                            .accessibilityLabel("Remove reference")
+                        }
+                    }
+                    PhotosPicker(selection: $refPicker, maxSelectionCount: 4, matching: .images) {
+                        Group {
+                            if library.uploading > 0 { ProgressView().controlSize(.small) } else { Image(systemName: "plus").font(.system(size: 14)) }
+                        }
+                        .foregroundStyle(dropActive ? NX.C.accent : NX.C.ink2)
+                        .frame(width: 44, height: 44)
+                        .overlay(Rectangle().strokeBorder(dropActive ? NX.C.accent : NX.C.line2, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+                    }
+                    .accessibilityLabel("Add reference photo")
+                    Spacer(minLength: 0)
+                    MetaLabel("\(studio.references.count) / \(studio.maxReferences) refs", color: NX.C.ink2, size: 10)
+                }
+
+                TextField("", text: $studio.prompt, prompt: Text(studio.kind == .image ? "Describe the picture" : "Describe the video").foregroundColor(NX.C.ink3), axis: .vertical)
+                    .font(NX.F.body(16))
                     .foregroundStyle(NX.C.ink)
-                    .lineLimit(2...6)
+                    .lineLimit(2...5)
                     .focused($promptFocused)
 
-                Button { Task { await studio.enhance(app: app) } } label: {
-                    HStack(spacing: 8) {
-                        if studio.enhancing { ProgressView().controlSize(.mini) } else { Image(systemName: "bolt") }
-                        Text("AI PROMPT").font(NX.F.mono(12, .semibold)).tracking(2.4)
+                HStack {
+                    Button { Task { await studio.enhance(app: app) } } label: {
+                        HStack(spacing: 6) {
+                            if studio.enhancing { ProgressView().controlSize(.mini) } else { Image(systemName: "bolt").font(.system(size: 12)) }
+                            Text("AI PROMPT").font(NX.F.mono(11)).tracking(1.8)
+                        }
+                        .foregroundStyle(studio.prompt.isEmpty ? NX.C.ink3 : NX.C.accent)
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .overlay(Rectangle().strokeBorder(studio.prompt.isEmpty ? NX.C.line : NX.C.accent.opacity(0.5), lineWidth: 1))
                     }
-                    .foregroundStyle(studio.prompt.isEmpty ? NX.C.muted : NX.C.ink)
-                    .padding(.horizontal, 14)
-                    .frame(height: 38)
-                    .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                    .buttonStyle(PressStyle())
+                    .disabled(studio.prompt.isEmpty || studio.enhancing)
+                    Spacer()
+                    ComposerIcon(systemName: "mic", label: "Dictate") { promptFocused = true }
                 }
-                .buttonStyle(PressStyle())
-                .disabled(studio.prompt.isEmpty || studio.enhancing)
             }
-            .padding(16)
+            .padding(12)
             .background(dropActive ? NX.C.accent.opacity(0.08) : NX.C.surface)
-            .overlay(Rectangle().strokeBorder(dropActive ? AnyShapeStyle(NX.G.frame) : AnyShapeStyle(promptFocused ? NX.C.line2 : NX.C.line), lineWidth: dropActive ? 2 : 1))
+            .overlay(Rectangle().strokeBorder(dropActive || promptFocused ? AnyShapeStyle(NX.G.frame) : AnyShapeStyle(NX.C.line2), lineWidth: dropActive ? 2 : 1))
+            .shadow(color: NX.C.accent.opacity(promptFocused ? 0.18 : 0.08), radius: 18)
             .dropDestination(for: String.self) { payloads, _ in
                 let items = payloads.compactMap { app.assetIndex[$0] }.filter { !$0.isVideo }
                 guard !items.isEmpty else { return false }
@@ -191,65 +255,95 @@ struct StudioScreen: View {
                 withAnimation(NX.Motion.hover) { dropActive = inside }
             }
 
-            HStack(spacing: 10) {
-                HStack(spacing: 0) {
-                    kindButton(.image, icon: "photo")
-                    kindButton(.video, icon: "video")
-                }
-                .overlay(Rectangle().strokeBorder(NX.C.accent, lineWidth: 1))
-
-                Button { showSettings = true } label: {
-                    HStack(spacing: 8) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(studio.familyLabel.uppercased())
-                                .font(NX.F.mono(11, .semibold)).tracking(0.8)
-                                .lineLimit(1).minimumScaleFactor(0.7)
-                            if let aspect = studio.aspect {
-                                Text(aspect).font(NX.F.mono(10)).foregroundStyle(NX.C.ink3)
-                            }
+            HStack(spacing: 6) {
+                Menu {
+                    ForEach(app.projects) { project in
+                        Button { app.currentProjectID = project.id } label: {
+                            if project.id == app.currentProjectID { Label(project.name, systemImage: "checkmark") } else { Text(project.name) }
                         }
-                        Image(systemName: "chevron.up").font(.system(size: 10, weight: .semibold)).foregroundStyle(NX.C.ink3)
                     }
-                    .foregroundStyle(NX.C.ink)
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
-                    .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                } label: {
+                    chip(icon: "folder", text: app.currentProject?.name ?? "Folder")
+                }
+                Button { showModels = true } label: {
+                    chip(icon: nil, text: studio.familyLabel.isEmpty ? "Model" : studio.familyLabel, chevron: true)
                 }
                 .buttonStyle(PressStyle())
-
-                Group {
-                    if studio.quoting {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        MetaLabel(studio.quote.map { "\(Int($0)) cr" } ?? "— cr", color: NX.C.ink, size: 12)
+                if let ratios = studio.variant(app)?.body.aspectRatio, ratios.count > 1 {
+                    Menu {
+                        ForEach(ratios, id: \.self) { r in
+                            Button(r) { studio.aspect = r; studio.refreshQuote(app) }
+                        }
+                    } label: {
+                        chip(icon: nil, text: studio.aspect ?? ratios[0])
                     }
                 }
-                .frame(minWidth: 52)
+                Spacer(minLength: 0)
+            }
 
-                SendButton(enabled: canSend) {
+            VStack(spacing: 6) {
+                Button {
                     promptFocused = false
                     Task { await studio.generate(app: app) }
+                } label: {
+                    HStack(spacing: 10) {
+                        if studio.submitting { ProgressView().tint(NX.C.btnInk) }
+                        Text("GENERATE").font(NX.F.display(17))
+                        if let q = studio.quote {
+                            Text("\(Int(q)) CR").font(NX.F.mono(12, .semibold)).tracking(1.4).opacity(0.75)
+                        } else if studio.quoting {
+                            ProgressView().controlSize(.mini).tint(NX.C.btnInk)
+                        }
+                    }
+                    .foregroundStyle(NX.C.btnInk)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(canSend ? AnyShapeStyle(NX.G.silver) : AnyShapeStyle(NX.G.sendIdle), in: CutCorner(cut: 14))
                 }
+                .buttonStyle(PressStyle())
+                .disabled(!canSend)
+
+                Text("BALANCE \(Int(app.account.available).formatted()) CR · FAILED RUNS ARE FREE")
+                    .font(NX.F.mono(10)).tracking(1.4).foregroundStyle(NX.C.ink2)
+                    .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .background(NX.C.bg)
-        .overlay(alignment: .top) { Hairline() }
+        .background(NX.C.bg.ignoresSafeArea(edges: .bottom))
     }
 
-    private func kindButton(_ kind: GenerationCard.Kind, icon: String) -> some View {
-        Button {
-            withAnimation(NX.Motion.hover) { studio.switchKind(kind, app: app) }
-        } label: {
-            Image(systemName: icon)
-                .font(.system(size: 17))
-                .foregroundStyle(studio.kind == kind ? NX.C.btnInk : NX.C.ink2)
-                .frame(width: 50, height: 46)
-                .background(studio.kind == kind ? AnyShapeStyle(NX.G.silver) : AnyShapeStyle(Color.clear))
+    private func chip(icon: String?, text: String, chevron: Bool = false) -> some View {
+        HStack(spacing: 6) {
+            if let icon { Image(systemName: icon).font(.system(size: 12)) }
+            Text(text.uppercased()).font(NX.F.mono(11)).tracking(1.2).lineLimit(1)
+            if chevron { Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(NX.C.ink2) }
         }
-        .buttonStyle(.plain)
+        .foregroundStyle(NX.C.ink)
+        .padding(.horizontal, 10)
+        .frame(height: 38)
+        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+    }
+}
+
+struct IndeterminateBar: View {
+    @State private var phase: CGFloat = -0.4
+
+    var body: some View {
+        GeometryReader { geo in
+            Rectangle().fill(Color.white.opacity(0.14))
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(NX.G.credits)
+                        .frame(width: geo.size.width * 0.4)
+                        .offset(x: phase * geo.size.width)
+                }
+                .clipped()
+        }
+        .frame(height: 3)
+        .onAppear {
+            withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { phase = 1 }
+        }
     }
 }
 
@@ -293,91 +387,78 @@ struct JobTile: View {
 
 struct RunSettingsSheet: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.dismiss) private var dismiss
     @Bindable var studio: StudioModel
-    @State private var showModels = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                DisplayTitle("Run settings", size: 26).padding(.top, 8)
+        VStack(spacing: 0) {
+            HStack {
+                DisplayTitle(studio.kind == .image ? "Image model" : "Video model", size: 22)
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.system(size: 16)).foregroundStyle(NX.C.inkSoft).frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Close")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    MetaLabel("Model")
-                    Button { withAnimation(NX.Motion.hover) { showModels.toggle() } } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "chart.bar.fill").foregroundStyle(NX.C.ink2)
-                            Text(studio.family(app)?.label ?? "Choose a model").font(NX.F.body(17)).foregroundStyle(NX.C.ink)
-                            Spacer()
-                            MetaLabel(studio.family(app)?.provider ?? "", size: 9)
-                            Image(systemName: showModels ? "chevron.up" : "chevron.down").font(.system(size: 11)).foregroundStyle(NX.C.ink3)
-                        }
-                        .padding(.horizontal, 14)
-                        .frame(height: 54)
-                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-
-                    if showModels {
-                        VStack(spacing: 0) {
-                            ForEach(studio.families(app)) { family in
-                                Button {
-                                    studio.select(family: family, app: app)
-                                    withAnimation(NX.Motion.hover) { showModels = false }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        HStack {
-                                            Text(family.label).font(NX.F.body(16, .medium)).foregroundStyle(NX.C.ink)
-                                            Spacer()
-                                            MetaLabel(family.provider, size: 9)
-                                        }
-                                        if let d = family.description {
-                                            Text(d).font(NX.F.body(13)).foregroundStyle(NX.C.ink3).multilineTextAlignment(.leading)
-                                        }
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(studio.families(app)) { family in
+                        let on = family.family == studio.familyID
+                        Button {
+                            studio.select(family: family, app: app)
+                        } label: {
+                            HStack(alignment: .top, spacing: 12) {
+                                Rectangle().fill(on ? NX.C.accent : .clear).frame(width: 3)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(family.label).font(NX.F.body(16, .semibold)).foregroundStyle(NX.C.ink)
+                                    MetaLabel(family.provider, color: NX.C.ink3, size: 10)
+                                    if let d = family.description {
+                                        Text(d).font(NX.F.body(13)).foregroundStyle(NX.C.ink2).multilineTextAlignment(.leading)
                                     }
-                                    .padding(14)
-                                    .background(family.family == studio.familyID ? NX.C.raised : Color.clear)
-                                    .overlay(alignment: .bottom) { Hairline() }
                                 }
-                                .buttonStyle(.plain)
+                                Spacer(minLength: 0)
+                                if on { Image(systemName: "checkmark").foregroundStyle(NX.C.accent) }
                             }
+                            .padding(.vertical, 14)
+                            .padding(.trailing, 16)
+                            .background(on ? AnyShapeStyle(NX.G.selected) : AnyShapeStyle(Color.clear))
+                            .overlay(alignment: .bottom) { Rectangle().fill(NX.C.lineSoft).frame(height: 1) }
+                            .contentShape(Rectangle())
                         }
-                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                        .buttonStyle(.plain)
                     }
                 }
+                .overlay(alignment: .top) { Rectangle().fill(NX.C.lineSoft).frame(height: 1) }
+                .padding(.top, 10)
+            }
 
+            VStack(alignment: .leading, spacing: 12) {
                 if let family = studio.family(app) {
                     ForEach(family.dimensions.filter { $0.key != "operation" }, id: \.key) { dimension in
                         let options = studio.options(for: dimension, app: app)
                         if options.count > 1 {
-                            VStack(alignment: .leading, spacing: 10) {
-                                MetaLabel(dimension.label)
-                                FlowChips(items: options.map { ($0.value, $0.label) }, selected: studio.dims[dimension.key]) { value in
-                                    studio.pick(key: dimension.key, value: value, app: app)
-                                }
+                            FlowChips(items: options.map { ($0.value, $0.label) }, selected: studio.dims[dimension.key]) { value in
+                                studio.pick(key: dimension.key, value: value, app: app)
                             }
                         }
                     }
-
                     if let ratios = studio.variant(app)?.body.aspectRatio, ratios.count > 1 {
-                        VStack(alignment: .leading, spacing: 10) {
-                            MetaLabel("Aspect ratio")
-                            FlowChips(items: ratios.map { ($0, $0) }, selected: studio.aspect) { value in
-                                studio.aspect = value
-                                studio.refreshQuote(app)
-                            }
+                        FlowChips(items: ratios.map { ($0, $0) }, selected: studio.aspect) { value in
+                            studio.aspect = value
+                            studio.refreshQuote(app)
                         }
                     }
                 }
-
-                HStack {
-                    MetaLabel("Price")
-                    Spacer()
-                    MetaLabel(studio.quote.map { "\(Int($0)) credits" } ?? "—", color: NX.C.ink, size: 13)
-                }
-                .padding(.top, 6)
+                NXPrimaryButton(title: "Use \(studio.familyLabel.isEmpty ? "model" : studio.familyLabel)") { dismiss() }
             }
-            .padding(20)
+            .padding(16)
+            .background(NX.C.surface)
+            .overlay(alignment: .top) { Rectangle().fill(NX.C.line).frame(height: 1) }
         }
+        .background(NX.C.surface)
     }
 }
 

@@ -2,38 +2,46 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+enum ThreadMode: Hashable { case answer, prompt, media }
+
 struct ChatScreen: View {
     @Environment(AppModel.self) private var model
     @State private var draft = ""
     @State private var showCapabilities = false
+    @State private var showTiers = false
     @State private var attachments: [ChatAttachment] = []
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var mode: ThreadMode = .answer
     @FocusState private var composerFocused: Bool
 
-    var body: some View {
-        VStack(spacing: 0) {
-            if let chat = model.currentChat, !chat.messages.isEmpty {
-                ThreadView(chat: chat, stage: model.streamingStage)
-            } else {
-                EmptyChatView(
-                    onCapability: { cap in
-                        draft = cap.example
-                        composerFocused = true
-                    },
-                    onSeeAll: { showCapabilities = true }
-                )
-            }
+    private var inThread: Bool { !(model.currentChat?.messages.isEmpty ?? true) }
+    private var hasText: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var uploading: Bool { attachments.contains { $0.uploading } }
 
-            Composer(text: $draft, attachments: $attachments, focused: $composerFocused) {
-                let text = draft
-                let urls = attachments.compactMap(\.url)
-                draft = ""
-                attachments = []
-                model.send(text, attachments: urls)
+    var body: some View {
+        ZStack(alignment: .top) {
+            NX.C.bg.ignoresSafeArea()
+
+            Group {
+                if let chat = model.currentChat, inThread {
+                    ThreadView(chat: chat, stage: model.streamingStage, mode: mode)
+                } else {
+                    EmptyChatView(
+                        onIdea: { text in
+                            draft = text
+                            composerFocused = true
+                        },
+                        onSeeAll: { showCapabilities = true }
+                    )
+                }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
+            .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 60) }
+            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+
+            header
         }
         .sensoryFeedback(.impact(weight: .light), trigger: model.currentChat?.messages.count ?? 0)
+        .onChange(of: model.currentChatID) { _, _ in mode = .answer }
         .task(id: model.pendingAttachments.count) {
             guard !model.pendingAttachments.isEmpty else { return }
             let items = model.pendingAttachments
@@ -61,115 +69,78 @@ struct ChatScreen: View {
             .presentationDetents([.large])
             .presentationBackground(NX.C.surface)
         }
-    }
-}
-
-struct EmptyChatView: View {
-    @Environment(AppModel.self) private var model
-    let onCapability: (Capability) -> Void
-    let onSeeAll: () -> Void
-
-    private var cards: [Capability] {
-        let order = ["preset", "video", "image", "web_search"]
-        return order.compactMap { id in model.capabilities.first { $0.id == id } }
+        .onChange(of: pickerItems) { _, items in
+            pickerItems = []
+            for item in items { Task { await add(item) } }
+        }
     }
 
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                Spacer(minLength: 60)
-                NXMark()
-                    .fill(NX.G.logo)
-                    .frame(width: 84, height: 84)
-                    .padding(.bottom, 26)
+    // MARK: Header
 
-                VStack(spacing: 2) {
-                    DisplayTitle("Ask, then render.", size: 30)
-                    GradientText(text: "Every engine, one chat.", size: 30)
-                }
-                .multilineTextAlignment(.center)
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 36)
-
-                HStack {
-                    MetaLabel("Start with", size: 12)
-                    Spacer()
-                    Button(action: onSeeAll) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "square.grid.2x2")
-                            Text("See all capabilities")
-                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
-                        }
-                        .font(NX.F.body(14))
-                        .foregroundStyle(NX.C.ink2)
+    private var header: some View {
+        FloatingHeader {
+            ChamferIconButton(systemName: "line.3.horizontal", label: "Menu") {
+                withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
+            }
+        } center: {
+            if inThread {
+                PillTabs(items: [
+                    .init(value: ThreadMode.answer, icon: "text.alignleft", accessibility: "Answer"),
+                    .init(value: ThreadMode.prompt, icon: "text.quote", accessibility: "Prompts"),
+                    .init(value: ThreadMode.media, icon: "photo.on.rectangle", accessibility: "Media"),
+                ], selection: $mode)
+            } else {
+                Button { showTiers.toggle() } label: {
+                    HStack(spacing: 8) {
+                        Text("NXOR").font(NX.F.display(16))
+                        Text((model.tier?.title ?? "Fast").uppercased()).font(NX.F.mono(11)).tracking(1.8).foregroundStyle(NX.C.accent)
+                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(NX.C.ink2)
                     }
+                    .foregroundStyle(NX.C.ink)
+                    .padding(.horizontal, 14)
+                    .frame(height: 40)
+                    .background(NX.C.raised)
+                    .overlay(Rectangle().strokeBorder(showTiers ? NX.C.accent : NX.C.line, lineWidth: 1))
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 12)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(cards) { cap in
-                            CapabilityCard(capability: cap) { onCapability(cap) }
-                        }
-                    }
-                    .padding(.horizontal, 16)
+                .buttonStyle(PressStyle())
+                .accessibilityLabel("Mode: \(model.tier?.title ?? "Fast"). Change")
+                .popover(isPresented: $showTiers, attachmentAnchor: .point(.bottom), arrowEdge: .top) {
+                    TierPicker { showTiers = false }
+                        .presentationCompactAdaptation(.popover)
                 }
             }
-        }
-        .scrollDismissesKeyboard(.interactively)
-    }
-}
-
-struct CapabilityCard: View {
-    let capability: Capability
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(capability.title).font(NX.F.body(18, .medium)).foregroundStyle(NX.C.ink)
-                    Text(capability.summary).font(NX.F.body(14)).foregroundStyle(NX.C.ink3)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+        } trailing: {
+            if inThread {
+                Menu {
+                    Button { model.openChat(nil) } label: { Label("New chat", systemImage: "square.and.pencil") }
+                    Picker("Mode", selection: Binding(get: { model.selectedTier }, set: { model.selectedTier = $0 })) {
+                        ForEach(model.tiers) { tier in Text(tier.title).tag(tier.tier) }
+                    }
+                    Button { showCapabilities = true } label: { Label("What can NXOR do?", systemImage: "sparkles") }
+                    if let id = model.currentChatID {
+                        Button(role: .destructive) { Task { await model.deleteChat(id) } } label: { Label("Delete chat", systemImage: "trash") }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(NX.C.inkSoft)
+                        .frame(width: 44, height: 44)
+                        .background(NX.C.raised, in: CutCorner(cut: 9))
+                        .overlay(CutCorner(cut: 9).strokeBorder(NX.C.line, lineWidth: 1))
                 }
-                Spacer(minLength: 0)
-                Image(systemName: capability.systemImage)
-                    .font(.system(size: 20))
-                    .foregroundStyle(NX.C.accent)
-                    .frame(width: 44, height: 44)
-                    .background(NX.C.bg)
-                    .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                .accessibilityLabel("More")
+            } else {
+                Button { model.showAccount = true } label: { HatchAvatar(size: 44) }
+                    .buttonStyle(PressStyle())
+                    .accessibilityLabel("Account")
             }
-            .padding(18)
-            .frame(width: 290, height: 120, alignment: .topLeading)
-            .background(NX.C.surface)
-            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
         }
-        .buttonStyle(PressStyle())
-    }
-}
-
-struct Composer: View {
-    @Environment(AppModel.self) private var model
-    @Binding var text: String
-    @Binding var attachments: [ChatAttachment]
-    var focused: FocusState<Bool>.Binding
-    let onSend: () -> Void
-    @State private var showTiers = false
-    @State private var pickerItems: [PhotosPickerItem] = []
-
-    private var canSend: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !model.isStreaming
-            && !attachments.contains { $0.uploading }
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+    // MARK: Composer
+
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 10) {
             if !attachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -183,76 +154,61 @@ struct Composer: View {
                                     }
                                 }
                             }
-                                .frame(width: 58, height: 58)
-                                .clipped()
-                                .overlay { if item.uploading { ZStack { Color.black.opacity(0.5); ProgressView().tint(NX.C.accent) } } }
-                                .overlay(alignment: .topTrailing) {
-                                    Button { attachments.removeAll { $0.id == item.id } } label: {
-                                        Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                                            .foregroundStyle(NX.C.ink).frame(width: 18, height: 18).background(Color.black.opacity(0.7))
-                                    }
+                            .frame(width: 56, height: 56)
+                            .clipped()
+                            .overlay { if item.uploading { ZStack { Color.black.opacity(0.5); ProgressView().tint(NX.C.accent) } } }
+                            .overlay(alignment: .topTrailing) {
+                                Button { attachments.removeAll { $0.id == item.id } } label: {
+                                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                                        .foregroundStyle(NX.C.ink).frame(width: 18, height: 18).background(Color.black.opacity(0.7))
                                 }
-                                .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                                .accessibilityLabel("Remove photo")
+                            }
+                            .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
                         }
                     }
                 }
             }
 
-            TextField("", text: $text, prompt: Text("Try: Show me trendy presets").foregroundColor(NX.C.muted), axis: .vertical)
-                .font(NX.F.body(17))
-                .foregroundStyle(NX.C.ink)
-                .lineLimit(1...6)
-                .focused(focused)
-
-            HStack(spacing: 10) {
-                PhotosPicker(selection: $pickerItems, maxSelectionCount: 4, matching: .images) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundStyle(NX.C.ink)
-                        .frame(width: 42, height: 42)
-                        .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
-                }
-                .onChange(of: pickerItems) { _, items in
-                    pickerItems = []
-                    for item in items { Task { await add(item) } }
-                }
-
-                Button { showTiers.toggle() } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "bolt").foregroundStyle(NX.C.accent)
-                        Text(model.selectedTier.uppercased()).font(NX.F.mono(13, .semibold)).tracking(2.6)
-                        Image(systemName: "chevron.up").font(.system(size: 10, weight: .semibold)).foregroundStyle(NX.C.ink3)
+            HStack(alignment: .bottom, spacing: 8) {
+                CapsuleField(text: $draft, placeholder: inThread ? "Ask a follow up…" : "Ask anything or describe a shot", focused: $composerFocused) {
+                    PhotosPicker(selection: $pickerItems, maxSelectionCount: 4, matching: .images) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(NX.C.ink2)
+                            .frame(width: 40, height: 52)
                     }
-                    .foregroundStyle(NX.C.ink)
-                    .padding(.horizontal, 16)
-                    .frame(height: 42)
-                    .overlay(Capsule().strokeBorder(showTiers ? NX.C.accent : NX.C.line2, lineWidth: 1))
-                }
-                .buttonStyle(PressStyle())
-                .popover(isPresented: $showTiers, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
-                    TierPicker { showTiers = false }
-                        .presentationCompactAdaptation(.popover)
+                    .accessibilityLabel("Attach photos")
+                } accessory: {
+                    ComposerIcon(systemName: "mic", label: "Dictate") { composerFocused = true }
                 }
 
-                Spacer()
                 if model.isStreaming {
-                    Button { model.stop() } label: {
-                        Image(systemName: "stop.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(NX.C.ink)
-                            .frame(width: 52, height: 46)
-                            .background(NX.C.raised, in: CutCorner(cut: 12))
-                            .overlay(CutCorner(cut: 12).strokeBorder(NX.C.line2, lineWidth: 1))
-                    }
-                    .buttonStyle(PressStyle())
+                    ChamferIconButton(systemName: "stop.fill", label: "Stop", size: 54) { model.stop() }
+                } else if inThread && !hasText {
+                    MetalSquareButton(systemName: "square.and.pencil", label: "New chat") { model.openChat(nil) }
                 } else {
-                    SendButton(enabled: canSend, action: onSend)
+                    MetalSquareButton(systemName: "arrow.up", label: "Send", enabled: hasText && !uploading) { send() }
                 }
             }
         }
-        .padding(16)
-        .background(NX.C.surface)
-        .overlay(Rectangle().strokeBorder(focused.wrappedValue ? NX.C.line2 : NX.C.line, lineWidth: 1))
+        .padding(.horizontal, 12)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
+        .background(
+            LinearGradient(stops: [.init(color: NX.C.bg.opacity(0), location: 0), .init(color: NX.C.bg, location: 0.35)],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
+    private func send() {
+        let text = draft
+        let urls = attachments.compactMap(\.url)
+        draft = ""
+        attachments = []
+        mode = .answer
+        model.send(text, attachments: urls)
     }
 
     @MainActor
@@ -272,6 +228,69 @@ struct Composer: View {
                 model.errorMessage = "Couldn't upload the photo. Try again."
             }
         }
+    }
+}
+
+struct EmptyChatView: View {
+    @Environment(AppModel.self) private var model
+    let onIdea: (String) -> Void
+    let onSeeAll: () -> Void
+
+    private var ideas: [(String, String)] {
+        [
+            ("video", "Make a 5-second video from a photo"),
+            ("photo", "Make an image from a few words"),
+            ("sparkle", "Show me trending presets"),
+            ("globe", "What's new in AI video this week?"),
+        ]
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 20)
+            ZStack {
+                SpectrumGlow()
+                VStack(spacing: 22) {
+                    NXMark().fill(NX.G.logo).frame(width: 60, height: 60)
+                    VStack(spacing: 2) {
+                        DisplayTitle("Ask, then render.", size: 26)
+                        GradientText(text: "Every engine, one chat.", size: 26)
+                    }
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 20)
+
+            VStack(spacing: 0) {
+                ForEach(Array(ideas.enumerated()), id: \.offset) { _, idea in
+                    Button { onIdea(idea.1) } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: idea.0).font(.system(size: 16)).foregroundStyle(NX.C.accent).frame(width: 22)
+                            Text(idea.1).font(NX.F.body(15)).foregroundStyle(NX.C.inkSoft).multilineTextAlignment(.leading)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(NX.C.ink3)
+                        }
+                        .frame(minHeight: 46)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Button(action: onSeeAll) {
+                    HStack(spacing: 8) {
+                        Text("SEE EVERYTHING NXOR CAN DO").font(NX.F.mono(11)).tracking(1.8)
+                        Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundStyle(NX.C.accent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+        }
+        .scrollDismissesKeyboard(.interactively)
     }
 }
 

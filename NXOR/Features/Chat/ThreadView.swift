@@ -5,11 +5,20 @@ import AVKit
 struct ThreadView: View {
     let chat: ChatThread
     let stage: ChatStage?
+    var mode: ThreadMode = .answer
 
     var body: some View {
+        switch mode {
+        case .answer: answer
+        case .prompt: prompts
+        case .media: media
+        }
+    }
+
+    private var answer: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 28) {
+                LazyVStack(alignment: .leading, spacing: 24) {
                     ForEach(chat.messages) { message in
                         MessageView(message: message, chatID: chat.id).id(message.id)
                     }
@@ -18,8 +27,8 @@ struct ThreadView: View {
                     }
                     Color.clear.frame(height: 1).id("bottom")
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 20)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -29,6 +38,80 @@ struct ThreadView: View {
             .onChange(of: chat.messages.count) { _, _ in
                 withAnimation(NX.Motion.hover) { proxy.scrollTo("bottom", anchor: .bottom) }
             }
+        }
+    }
+
+    private var allCards: [GenerationCard] { chat.messages.flatMap(\.allGenerations) }
+
+    private var prompts: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Eyebrow("Prompts in this chat")
+                if allCards.isEmpty {
+                    Text("Prompts NXOR writes for images and videos appear here.")
+                        .font(NX.F.body(15)).foregroundStyle(NX.C.ink2)
+                }
+                ForEach(allCards) { card in
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            MetaLabel(card.model, color: NX.C.accent, size: 10)
+                            Spacer()
+                            Button { UIPasteboard.general.string = card.prompt } label: {
+                                Image(systemName: "square.on.square").font(.system(size: 14)).foregroundStyle(NX.C.ink2)
+                                    .frame(width: 36, height: 36)
+                            }
+                            .accessibilityLabel("Copy prompt")
+                        }
+                        Text(card.prompt).font(NX.F.mono(13, .regular)).foregroundStyle(NX.C.inkSoft).lineSpacing(3)
+                            .textSelection(.enabled)
+                    }
+                    .padding(14)
+                    .background(NX.C.card)
+                    .overlay(Rectangle().strokeBorder(NX.C.lineSoft, lineWidth: 1))
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private var media: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Eyebrow("Media in this chat")
+                if allCards.isEmpty {
+                    Text("Images and videos from this chat appear here.")
+                        .font(NX.F.body(15)).foregroundStyle(NX.C.ink2)
+                }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                    ForEach(allCards) { card in
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fit)
+                            .overlay {
+                                if let url = card.thumbnailUrl ?? card.url, card.status == .completed {
+                                    AsyncImage(url: url) { phase in
+                                        if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                                    }
+                                } else {
+                                    ZStack {
+                                        NX.C.raised
+                                        Image(systemName: card.kind == .video ? "video" : "photo").foregroundStyle(NX.C.ink3)
+                                    }
+                                }
+                            }
+                            .clipped()
+                            .overlay(alignment: .bottomLeading) {
+                                MetaLabel(card.model, color: NX.C.ink, size: 8)
+                                    .padding(.horizontal, 6).padding(.vertical, 4)
+                                    .background(Color.black.opacity(0.7))
+                                    .padding(6)
+                            }
+                            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
     }
 }
@@ -55,25 +138,39 @@ struct MessageView: View {
                     }
                 }
                 HStack {
-                    Spacer(minLength: 48)
+                    Spacer(minLength: 56)
                     Text(message.text)
-                        .font(NX.F.body(16))
+                        .font(NX.F.body(15))
                         .foregroundStyle(NX.C.ink)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .lineSpacing(3)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
                         .background(NX.C.raised)
-                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant:
             VStack(alignment: .leading, spacing: 16) {
-                MetaLabel("NXOR", color: NX.C.ink3)
-                Text(LocalizedStringKey(message.text))
-                    .font(NX.F.body(17))
-                    .foregroundStyle(NX.C.ink)
-                    .lineSpacing(5)
-                    .textSelection(.enabled)
+                if !message.text.isEmpty {
+                    Text(LocalizedStringKey(message.text))
+                        .font(NX.F.body(17))
+                        .foregroundStyle(NX.C.ink)
+                        .lineSpacing(7)
+                        .tint(NX.C.accent)
+                        .textSelection(.enabled)
+                }
+                if !message.steps.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(message.steps.enumerated()), id: \.offset) { _, step in
+                            HStack(spacing: 10) {
+                                Image(systemName: Self.stepIcon(step)).font(.system(size: 13)).foregroundStyle(NX.C.ink3).frame(width: 16)
+                                Text(step).font(NX.F.body(13)).foregroundStyle(NX.C.ink2)
+                                Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(NX.C.ink3)
+                            }
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
                 ForEach(message.allGenerations) { generation in
                     GenerationCardView(card: generation)
                 }
@@ -94,20 +191,36 @@ struct MessageView: View {
                         .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
                     }
                 }
-                if let answeredBy = message.answeredBy, !message.text.isEmpty {
-                    HStack(spacing: 22) {
-                        MetaLabel(answeredBy, color: NX.C.ink3)
+                if !message.text.isEmpty {
+                    HStack(spacing: 2) {
                         Button { UIPasteboard.general.string = message.text } label: {
-                            Image(systemName: "square.on.square")
+                            Image(systemName: "square.on.square").frame(width: 40, height: 40)
                         }
-                        Button { model.regenerate() } label: { Image(systemName: "arrow.clockwise") }
+                        .accessibilityLabel("Copy")
+                        Button { model.regenerate() } label: { Image(systemName: "arrow.clockwise").frame(width: 40, height: 40) }
                             .disabled(model.isStreaming)
+                            .accessibilityLabel("Regenerate")
+                        Spacer()
+                        if let answeredBy = message.answeredBy {
+                            MetaLabel(answeredBy, color: NX.C.ink3, size: 10)
+                        }
                     }
                     .font(.system(size: 15))
-                    .foregroundStyle(NX.C.ink3)
+                    .foregroundStyle(NX.C.ink2)
                 }
             }
         }
+    }
+
+    static func stepIcon(_ step: String) -> String {
+        let s = step.lowercased()
+        if s.contains("prompt") { return "text.quote" }
+        if s.contains("search") || s.contains("web") { return "globe" }
+        if s.contains("video") { return "video" }
+        if s.contains("image") || s.contains("photo") { return "photo" }
+        if s.contains("model") { return "cpu" }
+        if s.contains("preset") { return "sparkle" }
+        return "circle.dashed"
     }
 }
 
@@ -117,18 +230,6 @@ struct GenerationCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
-                MetaLabel("Prompt sent · \(card.model)", color: NX.C.accent, size: 10)
-                Text(card.prompt)
-                    .font(NX.F.mono(13))
-                    .tracking(0.6)
-                    .foregroundStyle(NX.C.ink2)
-                    .lineLimit(expanded ? nil : 4)
-                    .onTapGesture { withAnimation(NX.Motion.hover) { expanded.toggle() } }
-            }
-            .padding(14)
-            .overlay(alignment: .leading) { Rectangle().fill(NX.C.line2).frame(width: 2) }
-
             ZStack {
                 LinearGradient(
                     colors: card.kind == .video
@@ -163,14 +264,22 @@ struct GenerationCardView: View {
             }
             .aspectRatio(card.aspect.map { CGFloat($0) } ?? (card.kind == .video ? 0.75 : 1.5), contentMode: .fit)
             .frame(maxWidth: .infinity)
-            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-
-            HStack {
-                MetaLabel(card.credits > 0 ? "\(card.model) · \(card.credits) credits" : card.model, color: NX.C.ink3, size: 10)
-                Spacer()
-                MetaLabel(statusLabel, color: NX.C.ink3, size: 10)
+            .overlay(alignment: .bottomLeading) {
+                MetaLabel(caption, color: NX.C.ink, size: 10)
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(Color.black.opacity(0.75))
+                    .padding(10)
+                    .allowsHitTesting(false)
             }
+            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
         }
+    }
+
+    private var caption: String {
+        var parts = [card.model]
+        if card.status == .completed { parts.append(card.kind == .video ? "Video" : "Image") } else { parts.append(statusLabel) }
+        if card.credits > 0 { parts.append("\(card.credits) cr") }
+        return parts.joined(separator: " · ")
     }
 
     private var statusLabel: String {

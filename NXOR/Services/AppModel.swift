@@ -38,6 +38,7 @@ final class AppModel {
     var launchSheet: String?
     var launchPreset: String?
     var pendingAttachments: [LibraryItem] = []
+    var showAccount = false
     var streamingStage: ChatStage? = nil
     var isStreaming = false
     var errorMessage: String?
@@ -323,7 +324,10 @@ final class AppModel {
                     streamingStage = nil
                     reply.text += chunk
                 case let .status(stage, model):
-                    streamingStage = ChatStage(rawValue: stage) ?? .thinking
+                    let parsed = ChatStage(rawValue: stage) ?? .thinking
+                    streamingStage = parsed
+                    let label = model.map { "\(parsed.doneLabel) · \($0)" } ?? parsed.doneLabel
+                    if parsed != .thinking, parsed != .reasoning, reply.steps.last != label { reply.steps.append(label) }
                     if let model, stage == "model_selected" { reply.answeredBy = model }
                 case let .generation(kind, generationId, prompt, modelSlug, credits):
                     let card = GenerationCard(
@@ -368,6 +372,7 @@ final class AppModel {
 
         let text = "This is a demo reply. Sign in with your NXOR account and the real agent will answer here. Model: \(tier?.chat.name ?? "Claude")."
         var message = ChatMessage(role: .assistant, text: "", answeredBy: tier?.chat.name)
+        message.steps = [ChatStage.writingPrompt.doneLabel]
         append(message, to: chatID)
         for word in text.split(separator: " ") {
             if Task.isCancelled { return }

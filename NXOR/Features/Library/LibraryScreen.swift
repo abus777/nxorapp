@@ -44,9 +44,9 @@ struct LibraryScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            header
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    header
                     FolderBar(dropTarget: $dropTarget) { payloads, project in
                         let items = payloads.compactMap { app.assetIndex[$0] }
                         guard !items.isEmpty else { return false }
@@ -63,12 +63,6 @@ struct LibraryScreen: View {
                         NXChip(title: "Images", selected: filter == "image") { filter = "image" }
                         NXChip(title: "Videos", selected: filter == "video") { filter = "video" }
                         Spacer(minLength: 0)
-                        NXChip(title: selecting ? "Done" : "Select", selected: selecting) {
-                            withAnimation(NX.Motion.hover) {
-                                selecting.toggle()
-                                selection = []
-                            }
-                        }
                     }
 
                     content
@@ -126,19 +120,22 @@ struct LibraryScreen: View {
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
-            DisplayTitle("Library", size: 34)
-            MetaLabel("\(library.items.count + library.uploads.count) assets", size: 13)
-            Spacer()
+        PageHeader(title: "Library", count: "\(library.items.count + library.uploads.count)") {
             PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
-                HStack(spacing: 8) {
-                    if library.uploading > 0 { ProgressView().controlSize(.small) } else { Image(systemName: "arrow.up") }
-                    Text("UPLOAD").font(NX.F.mono(12, .semibold)).tracking(2).fixedSize()
+                Group {
+                    if library.uploading > 0 { ProgressView().controlSize(.small) } else { Image(systemName: "arrow.up").font(.system(size: 16, weight: .medium)) }
                 }
-                .foregroundStyle(NX.C.ink)
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                .foregroundStyle(NX.C.inkSoft)
+                .frame(width: 44, height: 44)
+                .background(NX.C.raised, in: CutCorner(cut: 9))
+                .overlay(CutCorner(cut: 9).strokeBorder(NX.C.line, lineWidth: 1))
+            }
+            .accessibilityLabel("Upload")
+            ChamferIconButton(systemName: selecting ? "checkmark" : "checklist", label: selecting ? "Done" : "Select") {
+                withAnimation(NX.Motion.hover) {
+                    selecting.toggle()
+                    selection = []
+                }
             }
         }
     }
