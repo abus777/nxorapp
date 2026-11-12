@@ -8,7 +8,6 @@ struct BillingScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                DisplayTitle("Your plan.", size: 34)
                 Text("Plans and credit packs are managed on nxor.ai.")
                     .font(NX.F.body(16)).foregroundStyle(NX.C.ink2)
 
@@ -109,7 +108,6 @@ struct SettingsScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                DisplayTitle("Settings", size: 34)
 
                 HStack(spacing: 16) {
                     StripedAvatar(size: 56)
@@ -264,7 +262,6 @@ struct HelpScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DisplayTitle("Help center", size: 34)
                 Text("Answers on credits, billing, generation and your data.")
                     .font(NX.F.body(16)).foregroundStyle(NX.C.ink2)
 

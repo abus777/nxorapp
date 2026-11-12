@@ -57,6 +57,11 @@ jobs:
             xcrun simctl launch --stdout="$PWD/out/$name.stdout.txt" --stderr="$PWD/out/$name.stderr.txt" "$UDID" com.abus777.nxorapp "$@" > /dev/null
             sleep 14
             xcrun simctl io "$UDID" screenshot "out/$name.png"
+            for retry in 1 2 3; do
+              [ "$(stat -f%z "out/$name.png")" -gt 120000 ] && break
+              sleep 6
+              xcrun simctl io "$UDID" screenshot "out/$name.png"
+            done
             if xcrun simctl spawn "$UDID" launchctl list | grep -q com.abus777.nxorapp; then echo "$name alive" >> out/alive.txt; else echo "$name DEAD" >> out/alive.txt; fi
           }
           shot 01-login

@@ -53,10 +53,9 @@ struct ChatScreen: View {
         }
         .onAppear {
             if model.launchSheet == "capabilities" {
-                model.launchSheet = nil
                 Task {
-                    try? await Task.sleep(for: .milliseconds(600))
-                    showCapabilities = true
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    if model.launchSheet == "capabilities" { showCapabilities = true }
                 }
             }
         }
@@ -68,6 +67,7 @@ struct ChatScreen: View {
             }
             .presentationDetents([.large])
             .presentationBackground(NX.C.surface)
+            .onAppear { model.launchSheet = nil }
         }
         .onChange(of: pickerItems) { _, items in
             pickerItems = []
