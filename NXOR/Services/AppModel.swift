@@ -36,6 +36,7 @@ final class AppModel {
     var selectedTier = "fast"
     var sidebarOpen = false
     var launchSheet: String?
+    var launchPreset: String?
     var streamingStage: ChatStage? = nil
     var isStreaming = false
     var errorMessage: String?
@@ -49,6 +50,7 @@ final class AppModel {
         currentChatID = defaults.string(forKey: "chat")
         sidebarOpen = defaults.bool(forKey: "sidebar")
         launchSheet = defaults.string(forKey: "sheet")
+        launchPreset = defaults.string(forKey: "preset")
         if defaults.bool(forKey: "demo") { enterDemo() }
     }
 

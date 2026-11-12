@@ -247,6 +247,10 @@ struct PresetDetail: Decodable {
 extension NXORService {
     static func preset(_ slug: String) async throws -> PresetDetail { try await api.get("presets/\(slug)") }
 
+    static func deleteGeneration(kind: String, id: String) async throws {
+        _ = try await api.data(for: api.makeRequest("\(kind)s/\(id)", method: "DELETE"))
+    }
+
     static func uploadChatAttachment(data: Data) async throws -> String {
         let r: UploadResponse = try await api.upload("chat/uploads/attachment", data: data, filename: "photo.jpg", mimeType: "image/jpeg")
         guard let url = r.url else { throw APIError(status: 500, code: "upload", message: "The upload didn't return a URL.") }

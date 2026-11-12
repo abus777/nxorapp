@@ -1,6 +1,7 @@
 import SwiftUI
 import AVKit
 import UIKit
+import Photos
 
 struct LibraryItem: Identifiable, Hashable {
     let id: String
@@ -62,6 +63,19 @@ final class LibraryModel {
     var items: [LibraryItem] = []
     var loading = false
     var loaded = false
+
+    @MainActor
+    func delete(_ item: LibraryItem, app: AppModel) async {
+        items.removeAll { $0.id == item.id }
+        guard app.auth == .live else { return }
+        do {
+            try await NXORService.deleteGeneration(kind: item.isVideo ? "video" : "image", id: item.id)
+        } catch {
+            app.errorMessage = error.localizedDescription
+            loaded = false
+            await load(app: app)
+        }
+    }
 
     @MainActor
     func load(app: AppModel) async {
@@ -144,7 +158,9 @@ struct LibraryScreen: View {
         .refreshable { library.loaded = false; await library.load(app: app) }
         .task { if !library.loaded { await library.load(app: app) } }
         .fullScreenCover(item: $selected) { item in
-            AssetViewer(items: filtered, current: item)
+            AssetViewer(items: filtered, current: item) { deleted in
+                Task { await library.delete(deleted, app: app) }
+            }
         }
     }
 
@@ -188,12 +204,16 @@ struct LibraryTile: View {
 
 struct AssetViewer: View {
     let items: [LibraryItem]
+    var onDelete: ((LibraryItem) -> Void)?
     @State var current: LibraryItem
     @Environment(\.dismiss) private var dismiss
     @State private var showAllPrompt = false
+    @State private var confirmDelete = false
+    @State private var toast: String?
 
-    init(items: [LibraryItem], current: LibraryItem) {
+    init(items: [LibraryItem], current: LibraryItem, onDelete: ((LibraryItem) -> Void)? = nil) {
         self.items = items
+        self.onDelete = onDelete
         _current = State(initialValue: current)
     }
 
@@ -208,16 +228,25 @@ struct AssetViewer: View {
                 Spacer()
                 DisplayTitle(current.isVideo ? "Video" : "Image", size: 20)
                 Spacer()
-                if let url = current.url {
-                    ShareLink(item: url) {
-                        Image(systemName: "square.and.arrow.up").foregroundStyle(NX.C.ink)
+                Menu {
+                    if let url = current.url {
+                        ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
+                        Button { Task { await saveToPhotos(url) } } label: { Label("Save to Photos", systemImage: "square.and.arrow.down") }
                     }
-                } else {
-                    Color.clear.frame(width: 20)
+                    Button { UIPasteboard.general.string = current.prompt } label: { Label("Copy prompt", systemImage: "doc.on.doc") }
+                    if onDelete != nil {
+                        Button(role: .destructive) { confirmDelete = true } label: { Label("Delete", systemImage: "trash") }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(NX.C.ink)
+                        .frame(width: 40, height: 40)
+                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
                 }
             }
             .padding(.horizontal, 18)
-            .frame(height: 52)
+            .frame(height: 56)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -254,6 +283,54 @@ struct AssetViewer: View {
         }
         .background(NX.C.bg.ignoresSafeArea())
         .preferredColorScheme(.dark)
+        .overlay(alignment: .bottom) {
+            if let toast {
+                MetaLabel(toast, color: NX.C.ink, size: 11)
+                    .padding(.horizontal, 16).padding(.vertical, 12)
+                    .background(NX.C.raised)
+                    .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                    .padding(.bottom, 30)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .confirmationDialog("Delete this \(current.isVideo ? "video" : "image")?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                onDelete?(current)
+                dismiss()
+            }
+        } message: {
+            Text("It will be removed from your NXOR library.")
+        }
+    }
+
+    @MainActor
+    private func saveToPhotos(_ url: URL) async {
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else { show("Allow Photos access in Settings"); return }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let isVideo = current.isVideo
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + (isVideo ? ".mp4" : ".jpg"))
+            try data.write(to: file)
+            try await PHPhotoLibrary.shared().performChanges {
+                if isVideo {
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: file)
+                } else {
+                    PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: file)
+                }
+            }
+            show("Saved to Photos")
+        } catch {
+            show("Couldn't save")
+        }
+    }
+
+    private func show(_ message: String) {
+        withAnimation(NX.Motion.pop) { toast = message }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(NX.Motion.pop) { toast = nil }
+        }
     }
 
     @ViewBuilder

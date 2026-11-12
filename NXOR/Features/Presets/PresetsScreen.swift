@@ -49,6 +49,15 @@ struct PresetsScreen: View {
             }
             .padding(.vertical, 12)
         }
+        .onAppear {
+            if let slug = model.launchPreset {
+                model.launchPreset = nil
+                Task {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    selected = model.presets.first { $0.slug == slug }
+                }
+            }
+        }
         .sheet(item: $selected) { preset in
             PresetDetailView(preset: preset)
                 .presentationDragIndicator(.visible)

@@ -197,6 +197,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = NXOR;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "NXOR saves the images and videos you create to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NXOR uses your photos as references for presets and chat.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -225,6 +227,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = NXOR;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "NXOR saves the images and videos you create to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "NXOR uses your photos as references for presets and chat.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
