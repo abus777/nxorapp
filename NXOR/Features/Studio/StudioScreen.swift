@@ -51,6 +51,8 @@ struct StudioScreen: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(NX.C.surface)
         }
+        .sensoryFeedback(.success, trigger: studio.jobs.filter { $0.status == .completed }.count)
+        .sensoryFeedback(.impact(weight: .medium), trigger: studio.jobs.count)
         .fullScreenCover(item: $viewing) { item in
             AssetViewer(items: library.items, current: item)
         }
@@ -102,14 +104,19 @@ struct StudioScreen: View {
 
                 Button { showSettings = true } label: {
                     HStack(spacing: 8) {
-                        Text(studio.chipLabel.uppercased())
-                            .font(NX.F.mono(12, .semibold)).tracking(1.6)
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(studio.familyLabel.uppercased())
+                                .font(NX.F.mono(11, .semibold)).tracking(0.8)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                            if let aspect = studio.aspect {
+                                Text(aspect).font(NX.F.mono(10)).foregroundStyle(NX.C.ink3)
+                            }
+                        }
                         Image(systemName: "chevron.up").font(.system(size: 10, weight: .semibold)).foregroundStyle(NX.C.ink3)
                     }
                     .foregroundStyle(NX.C.ink)
-                    .padding(.horizontal, 12)
-                    .frame(maxWidth: .infinity, minHeight: 46)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
                     .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
                 }
                 .buttonStyle(PressStyle())

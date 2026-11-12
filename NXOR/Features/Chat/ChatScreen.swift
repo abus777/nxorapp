@@ -33,6 +33,7 @@ struct ChatScreen: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: model.currentChat?.messages.count ?? 0)
         .onAppear {
             if model.launchSheet == "capabilities" {
                 model.launchSheet = nil
