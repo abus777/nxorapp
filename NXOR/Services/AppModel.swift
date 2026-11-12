@@ -37,6 +37,7 @@ final class AppModel {
     var sidebarOpen = false
     var launchSheet: String?
     var launchPreset: String?
+    var pendingAttachments: [LibraryItem] = []
     var streamingStage: ChatStage? = nil
     var isStreaming = false
     var errorMessage: String?
@@ -279,6 +280,18 @@ final class AppModel {
             isStreaming = false
             await refreshBalance()
         }
+    }
+
+    @MainActor
+    func regenerate() {
+        guard let chat = currentChat, let lastUser = chat.messages.last(where: { $0.role == .user }) else { return }
+        send(lastUser.text, attachments: lastUser.files.map(\.absoluteString))
+    }
+
+    func sendToChat(_ items: [LibraryItem]) {
+        pendingAttachments = items.filter { !$0.isVideo && $0.url != nil }
+        currentChatID = nil
+        open(.chat)
     }
 
     @MainActor

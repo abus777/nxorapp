@@ -34,6 +34,15 @@ struct ChatScreen: View {
             .padding(.bottom, 8)
         }
         .sensoryFeedback(.impact(weight: .light), trigger: model.currentChat?.messages.count ?? 0)
+        .task(id: model.pendingAttachments.count) {
+            guard !model.pendingAttachments.isEmpty else { return }
+            let items = model.pendingAttachments
+            model.pendingAttachments = []
+            for item in items {
+                attachments.append(ChatAttachment(previewURL: item.previewURL, uploading: false, url: item.url?.absoluteString))
+            }
+            composerFocused = true
+        }
         .onAppear {
             if model.launchSheet == "capabilities" {
                 model.launchSheet = nil
@@ -165,8 +174,15 @@ struct Composer: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(attachments) { item in
-                            Image(uiImage: item.image)
-                                .resizable().scaledToFill()
+                            Group {
+                                if let image = item.image {
+                                    Image(uiImage: image).resizable().scaledToFill()
+                                } else {
+                                    AsyncImage(url: item.previewURL) { phase in
+                                        if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
+                                    }
+                                }
+                            }
                                 .frame(width: 58, height: 58)
                                 .clipped()
                                 .overlay { if item.uploading { ZStack { Color.black.opacity(0.5); ProgressView().tint(NX.C.accent) } } }
@@ -358,7 +374,8 @@ struct CapabilitiesSheet: View {
 
 struct ChatAttachment: Identifiable {
     let id = UUID()
-    let image: UIImage
+    var image: UIImage? = nil
+    var previewURL: URL? = nil
     var uploading: Bool
     var url: String? = nil
 }

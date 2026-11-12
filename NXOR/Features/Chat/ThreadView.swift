@@ -35,6 +35,7 @@ struct ThreadView: View {
 
 struct MessageView: View {
     let message: ChatMessage
+    @Environment(AppModel.self) private var model
     var chatID: String = ""
 
     var body: some View {
@@ -99,7 +100,8 @@ struct MessageView: View {
                         Button { UIPasteboard.general.string = message.text } label: {
                             Image(systemName: "square.on.square")
                         }
-                        Image(systemName: "arrow.clockwise")
+                        Button { model.regenerate() } label: { Image(systemName: "arrow.clockwise") }
+                            .disabled(model.isStreaming)
                     }
                     .font(.system(size: 15))
                     .foregroundStyle(NX.C.ink3)

@@ -197,6 +197,9 @@ struct LibraryScreen: View {
                 .draggable(item.dragPayload) { DragPreview(item: item) }
                 .contextMenu {
                     Button { viewing = item } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
+                    if !item.isVideo {
+                        Button { app.sendToChat([item]) } label: { Label("Send to chat", systemImage: "bubble.left.and.text.bubble.right") }
+                    }
                     Menu {
                         ForEach(app.projects.filter { $0.id != app.currentProjectID }) { project in
                             Button(project.name) { Task { await library.move([item], to: project, app: app) } }
