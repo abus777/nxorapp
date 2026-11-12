@@ -62,6 +62,10 @@ jobs:
               sleep 6
               xcrun simctl io "$UDID" screenshot "out/$name.png"
             done
+            if [ "$name" = "04-sidebar" ]; then
+              PID=$(pgrep -f "NXOR.app/NXOR" | head -1)
+              [ -n "$PID" ] && sample "$PID" 3 -file "out/$name.sample.txt" >/dev/null 2>&1 || true
+            fi
             if xcrun simctl spawn "$UDID" launchctl list | grep -q com.abus777.nxorapp; then echo "$name alive" >> out/alive.txt; else echo "$name DEAD" >> out/alive.txt; fi
           }
           shot 01-login
