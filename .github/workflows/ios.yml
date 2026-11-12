@@ -54,9 +54,10 @@ jobs:
           shot() {
             name=$1; shift
             xcrun simctl terminate "$UDID" com.abus777.nxorapp 2>/dev/null || true
-            xcrun simctl launch "$UDID" com.abus777.nxorapp "$@" > /dev/null
-            sleep 6
+            xcrun simctl launch --stdout="$PWD/out/$name.stdout.txt" --stderr="$PWD/out/$name.stderr.txt" "$UDID" com.abus777.nxorapp "$@" > /dev/null
+            sleep 9
             xcrun simctl io "$UDID" screenshot "out/$name.png"
+            if xcrun simctl spawn "$UDID" launchctl list | grep -q com.abus777.nxorapp; then echo "$name alive" >> out/alive.txt; else echo "$name DEAD" >> out/alive.txt; fi
           }
           shot 01-login
           shot 02-home -demo YES
@@ -69,6 +70,9 @@ jobs:
           shot 09-presets -demo YES -route presets
           shot 10-billing -demo YES -route billing
           shot 11-settings -demo YES -route settings
+          mkdir -p out/crashes
+          find ~/Library/Logs/DiagnosticReports -name 'NXOR*' -newer build.log -exec cp {} out/crashes/ \; 2>/dev/null || true
+          find out -name '*.std*.txt' -size 0 -delete
           xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "NXOR"' --style compact 2>/dev/null | grep -iE "fault|error|crash" | tail -40 > out/runtime-errors.txt || true
 
       - name: Publish results to ci-results branch
