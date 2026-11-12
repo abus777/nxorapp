@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
         run: |
           set +e
           xcodebuild -project NXOR.xcodeproj -target NXOR -configuration Debug \
-            -sdk iphonesimulator -arch arm64 SYMROOT="$PWD/build" \
+            -sdk iphonesimulator SYMROOT="$PWD/build" \
             CODE_SIGNING_ALLOWED=NO build > build.log 2>&1
           echo "status=$?" >> "$GITHUB_OUTPUT"
           mkdir -p out
