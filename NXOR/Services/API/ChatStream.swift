@@ -12,11 +12,15 @@ enum ChatEvent {
 }
 
 struct ChatProposal: Identifiable, Hashable {
+    enum State: Hashable { case open, running, submitted, dismissed }
+
     let id: String
     let kind: String
-    let prompt: String
+    var prompt: String
     let modelLabel: String
+    var modelSlug: String? = nil
     let credits: Double?
+    var state: State = .open
 }
 
 struct ChatSendBody: Encodable {
@@ -114,6 +118,7 @@ enum ChatStream {
                 kind: json["kind"] as? String ?? "image",
                 prompt: json["prompt"] as? String ?? "",
                 modelLabel: model?["label"] as? String ?? "",
+                modelSlug: model?["slug"] as? String,
                 credits: model?["credits"] as? Double
             ))
         case "file":

@@ -313,6 +313,23 @@ struct PresetDetail: Decodable {
 extension NXORService {
     static func preset(_ slug: String) async throws -> PresetDetail { try await api.get("presets/\(slug)") }
 
+    /// Runs a generation the agent proposed. Spends credits.
+    static func submitProposal(sessionId: String, proposalId: String, prompt: String, modelSlug: String?) async throws -> String? {
+        var body: [String: String] = ["prompt": prompt]
+        if let modelSlug { body["modelSlug"] = modelSlug }
+        let (data, _) = try await api.data(for: api.makeRequest("chat/sessions/\(sessionId)/proposals/\(proposalId)/submit", method: "POST", body: body))
+        let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        return json?["generationId"] as? String ?? json?["imageId"] as? String ?? json?["videoId"] as? String ?? json?["id"] as? String
+    }
+
+    static func dismissProposal(sessionId: String, proposalId: String) async throws {
+        _ = try await api.data(for: api.makeRequest("chat/sessions/\(sessionId)/proposals/\(proposalId)/dismiss", method: "POST"))
+    }
+
+    static func deleteChat(_ id: String) async throws {
+        _ = try await api.data(for: api.makeRequest("chat/sessions/\(id)", method: "DELETE"))
+    }
+
     static func deleteGeneration(kind: String, id: String) async throws {
         _ = try await api.data(for: api.makeRequest("\(kind)s/\(id)", method: "DELETE"))
     }
@@ -353,4 +370,33 @@ struct MoveBody: Encodable {
 
 struct DeleteBody: Encodable {
     let items: [LibraryRef]
+}
+
+struct MemoryState: Decodable {
+    let enabled: Bool
+    let content: String?
+}
+
+struct ReferralInfo: Decodable {
+    let code: String
+    let link: String
+    let signups: Int
+    let paid: Int
+    let creditsEarned: Double
+    let rewardPerReferral: Double
+    let discountPercent: Int?
+}
+
+extension NXORService {
+    static func memory() async throws -> MemoryState { try await api.get("memory") }
+
+    static func setMemory(enabled: Bool) async throws {
+        _ = try await api.data(for: api.makeRequest("memory", method: "PATCH", body: ["enabled": enabled] as [String: Bool]))
+    }
+
+    static func clearMemory() async throws {
+        _ = try await api.data(for: api.makeRequest("memory", method: "DELETE"))
+    }
+
+    static func referral() async throws -> ReferralInfo { try await api.get("referrals/me") }
 }

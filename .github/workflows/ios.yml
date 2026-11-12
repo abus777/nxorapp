@@ -73,6 +73,7 @@ jobs:
           shot 12-preset-detail -demo YES -route presets -preset neon-noir-relight
           shot 13-studio-refs -demo YES -route studio -refs 2
           shot 14-library-select -demo YES -route library -select YES
+          shot 15-chat-proposal -demo YES -chat c5
           mkdir -p out/crashes
           find ~/Library/Logs/DiagnosticReports -name 'NXOR*' -newer build.log -exec cp {} out/crashes/ \; 2>/dev/null || true
           find out -name '*.std*.txt' -size 0 -delete

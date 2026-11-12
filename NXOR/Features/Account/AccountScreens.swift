@@ -100,6 +100,11 @@ struct SettingsScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
     @State private var confirmSignOut = false
+    @State private var memoryOn = true
+    @State private var memoryText: String?
+    @State private var memoryLoaded = false
+    @State private var confirmClearMemory = false
+    @State private var referral: ReferralInfo?
 
     var body: some View {
         ScrollView {
@@ -114,6 +119,59 @@ struct SettingsScreen: View {
                         MetaLabel("\(model.account.planName) · \(Int(model.account.available).formatted()) credits", color: NX.C.ink3, size: 10)
                     }
                 }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    MetaLabel("Memory")
+                    Toggle(isOn: $memoryOn) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Remember things about me").font(NX.F.body(16)).foregroundStyle(NX.C.ink)
+                            Text("NXOR keeps short notes from your chats to personalise answers.")
+                                .font(NX.F.body(13)).foregroundStyle(NX.C.ink3)
+                        }
+                    }
+                    .tint(NX.C.accent)
+                    .onChange(of: memoryOn) { _, on in
+                        guard memoryLoaded, model.auth == .live else { return }
+                        Task { try? await NXORService.setMemory(enabled: on) }
+                    }
+                    if let memoryText, !memoryText.isEmpty {
+                        Text(memoryText).font(NX.F.mono(12)).foregroundStyle(NX.C.ink2).lineLimit(6)
+                        Button("Clear memory", role: .destructive) { confirmClearMemory = true }
+                            .font(NX.F.mono(12, .semibold))
+                    }
+                }
+                .padding(16)
+                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    MetaLabel("Invite friends")
+                    if let referral {
+                        Text(verbatim: referralPitch(referral))
+                            .font(NX.F.body(15)).foregroundStyle(NX.C.ink2)
+                        HStack(spacing: 0) {
+                            refStat("Signups", "\(referral.signups)")
+                            refStat("Paid", "\(referral.paid)")
+                            refStat("Earned", "\(Int(referral.creditsEarned)) cr")
+                        }
+                        if let url = URL(string: referral.link) {
+                            ShareLink(item: url, message: Text("Try NXOR — every AI model in one chat")) {
+                                HStack {
+                                    Text(referral.link).font(NX.F.mono(12)).lineLimit(1)
+                                    Spacer()
+                                    Image(systemName: "square.and.arrow.up")
+                                }
+                                .foregroundStyle(NX.C.ink)
+                                .padding(14)
+                                .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                            }
+                        }
+                    } else {
+                        Text(model.isDemo ? "Sign in to get your invite link." : "Loading…")
+                            .font(NX.F.body(14)).foregroundStyle(NX.C.ink3)
+                    }
+                }
+                .padding(16)
+                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
 
                 VStack(spacing: 0) {
                     row("Manage plan", icon: "creditcard") { model.open(.billing) }
@@ -138,6 +196,35 @@ struct SettingsScreen: View {
         .confirmationDialog("Sign out of NXOR?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await model.signOut() } }
         }
+        .confirmationDialog("Clear everything NXOR remembers?", isPresented: $confirmClearMemory, titleVisibility: .visible) {
+            Button("Clear memory", role: .destructive) {
+                memoryText = nil
+                Task { try? await NXORService.clearMemory() }
+            }
+        }
+        .task {
+            guard model.auth == .live else { memoryLoaded = true; return }
+            if let m = try? await NXORService.memory() {
+                memoryOn = m.enabled
+                memoryText = m.content
+            }
+            memoryLoaded = true
+            referral = try? await NXORService.referral()
+        }
+    }
+
+    private func referralPitch(_ r: ReferralInfo) -> String {
+        var text = "Get \(Int(r.rewardPerReferral)) credits for every friend who joins"
+        if let discount = r.discountPercent { text += " — they get \(discount)% off" }
+        return text + "."
+    }
+
+    private func refStat(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MetaLabel(title, size: 9)
+            Text(value).font(NX.F.display(20)).foregroundStyle(NX.C.ink)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func row(_ title: String, icon: String, action: @escaping () -> Void) -> some View {

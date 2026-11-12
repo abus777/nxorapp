@@ -11,7 +11,7 @@ struct ThreadView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 28) {
                     ForEach(chat.messages) { message in
-                        MessageView(message: message).id(message.id)
+                        MessageView(message: message, chatID: chat.id).id(message.id)
                     }
                     if let stage {
                         StageIndicator(stage: stage).id("stage")
@@ -35,6 +35,7 @@ struct ThreadView: View {
 
 struct MessageView: View {
     let message: ChatMessage
+    var chatID: String = ""
 
     var body: some View {
         switch message.role {
@@ -75,8 +76,8 @@ struct MessageView: View {
                 ForEach(message.allGenerations) { generation in
                     GenerationCardView(card: generation)
                 }
-                ForEach(message.proposals) { proposal in
-                    ProposalCardView(proposal: proposal)
+                ForEach(message.proposals.filter { $0.state != .dismissed }) { proposal in
+                    ProposalCardView(proposal: proposal, chatID: chatID)
                 }
                 ForEach(message.files, id: \.self) { url in
                     Link(destination: url) {
@@ -201,12 +202,15 @@ struct StageIndicator: View {
 }
 
 struct ProposalCardView: View {
+    @Environment(AppModel.self) private var model
     let proposal: ChatProposal
+    let chatID: String
+    @State private var expanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                MetaLabel("Proposed · \(proposal.modelLabel)", color: NX.C.accent, size: 10)
+                MetaLabel(proposal.state == .submitted ? "Prompt sent · \(proposal.modelLabel)" : "Proposed · \(proposal.modelLabel)", color: NX.C.accent, size: 10)
                 Spacer()
                 if let credits = proposal.credits {
                     MetaLabel("\(Int(credits)) cr", color: NX.C.ink, size: 10)
@@ -216,13 +220,47 @@ struct ProposalCardView: View {
                 .font(NX.F.mono(13))
                 .tracking(0.6)
                 .foregroundStyle(NX.C.ink2)
-                .lineLimit(6)
-            Text("Reply “run it” to start this \(proposal.kind), or tell the agent what to change.")
-                .font(NX.F.body(13))
-                .foregroundStyle(NX.C.ink3)
+                .lineLimit(expanded ? nil : 6)
+                .onTapGesture { withAnimation(NX.Motion.hover) { expanded.toggle() } }
+
+            if proposal.state == .open || proposal.state == .running {
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await model.runProposal(proposal, in: chatID) }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if proposal.state == .running { ProgressView().controlSize(.small).tint(NX.C.btnInk) }
+                            Text(runTitle.uppercased()).font(NX.F.display(14))
+                        }
+                        .foregroundStyle(NX.C.btnInk)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(NX.G.silver, in: CutCorner(cut: 10))
+                    }
+                    .buttonStyle(PressStyle())
+                    .disabled(proposal.state == .running)
+
+                    Button {
+                        Task { await model.dismissProposal(proposal, in: chatID) }
+                    } label: {
+                        Text("DISMISS").font(NX.F.mono(11, .semibold)).tracking(1.8)
+                            .foregroundStyle(NX.C.ink2)
+                            .padding(.horizontal, 14).frame(height: 44)
+                            .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                    }
+                    .buttonStyle(PressStyle())
+                    .disabled(proposal.state == .running)
+                }
+            }
         }
         .padding(14)
         .background(NX.C.surface)
-        .overlay(Rectangle().strokeBorder(NX.G.frame, lineWidth: 1))
+        .overlay(Rectangle().strokeBorder(proposal.state == .submitted ? AnyShapeStyle(NX.C.line) : AnyShapeStyle(NX.G.frame), lineWidth: 1))
+    }
+
+    private var runTitle: String {
+        let what = proposal.kind == "video" ? "Make video" : "Make image"
+        if let credits = proposal.credits { return "\(what) · \(Int(credits)) cr" }
+        return what
     }
 }

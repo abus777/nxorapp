@@ -40,7 +40,14 @@ enum MockData {
         ]),
         ChatThread(id: "c3", title: "Analyse the PDF and make slides", messages: []),
         ChatThread(id: "c4", title: "Write a script for a video", messages: []),
-        ChatThread(id: "c5", title: "I want a video with a cat", messages: []),
+        ChatThread(id: "c5", title: "I want a video with a cat", messages: [
+            .init(role: .user, text: "I want a video with a cat"),
+            .init(role: .assistant, text: "Here's a prompt for your cat video — check it on the card and press the button when you're happy with it.",
+                  answeredBy: "Claude Sonnet 5.5",
+                  proposals: [ChatProposal(id: "demo-prop", kind: "video",
+                                           prompt: "A fluffy ginger cat walks along a sunlit rooftop at golden hour, slow tracking shot at eye level, warm backlight, soft focus city skyline behind, 24fps cinematic motion.",
+                                           modelLabel: "Kling V3 Turbo", modelSlug: nil, credits: 450)]),
+        ]),
         ChatThread(id: "c6", title: "Rabbit running around Etihad Towers", messages: []),
         ChatThread(id: "c7", title: "Bring @image1 to life in Wan 3.0", messages: []),
     ]

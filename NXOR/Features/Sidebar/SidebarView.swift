@@ -106,6 +106,11 @@ struct SidebarView: View {
                                     .background(chat.id == model.currentChatID ? NX.C.raised : .clear)
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    Task { await model.deleteChat(chat.id) }
+                                } label: { Label("Delete chat", systemImage: "trash") }
+                            }
                         }
                     }
                 }

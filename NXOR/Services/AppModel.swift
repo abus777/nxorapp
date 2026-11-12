@@ -364,6 +364,63 @@ final class AppModel {
         }
     }
 
+    // MARK: Proposals & chats
+
+    @MainActor
+    func runProposal(_ proposal: ChatProposal, in chatID: String) async {
+        updateProposal(proposal.id, in: chatID) { $0.state = .running }
+        if auth != .live {
+            try? await Task.sleep(for: .seconds(1))
+            updateProposal(proposal.id, in: chatID) { $0.state = .submitted }
+            appendGeneration(GenerationCard(kind: proposal.kind == "video" ? .video : .image, model: proposal.modelLabel, credits: Int(proposal.credits ?? 0), status: .completed, prompt: proposal.prompt), to: proposal.id, in: chatID)
+            return
+        }
+        do {
+            let id = try await NXORService.submitProposal(sessionId: chatID, proposalId: proposal.id, prompt: proposal.prompt, modelSlug: proposal.modelSlug)
+            updateProposal(proposal.id, in: chatID) { $0.state = .submitted }
+            let card = GenerationCard(generationId: id, kind: proposal.kind == "video" ? .video : .image, model: proposal.modelLabel, credits: Int(proposal.credits ?? 0), status: .processing, prompt: proposal.prompt)
+            appendGeneration(card, to: proposal.id, in: chatID)
+            trackGeneration(card, in: chatID)
+            await refreshBalance()
+        } catch {
+            updateProposal(proposal.id, in: chatID) { $0.state = .open }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    func dismissProposal(_ proposal: ChatProposal, in chatID: String) async {
+        updateProposal(proposal.id, in: chatID) { $0.state = .dismissed }
+        if auth == .live { try? await NXORService.dismissProposal(sessionId: chatID, proposalId: proposal.id) }
+    }
+
+    @MainActor
+    func deleteChat(_ id: String) async {
+        chats.removeAll { $0.id == id }
+        if currentChatID == id { currentChatID = nil }
+        if auth == .live, !id.hasPrefix("local-") {
+            do { try await NXORService.deleteChat(id) } catch { errorMessage = error.localizedDescription }
+        }
+    }
+
+    @MainActor
+    private func updateProposal(_ id: String, in chatID: String, _ change: (inout ChatProposal) -> Void) {
+        guard let c = chats.firstIndex(where: { $0.id == chatID }) else { return }
+        for m in chats[c].messages.indices {
+            if let p = chats[c].messages[m].proposals.firstIndex(where: { $0.id == id }) {
+                change(&chats[c].messages[m].proposals[p])
+            }
+        }
+    }
+
+    @MainActor
+    private func appendGeneration(_ card: GenerationCard, to proposalID: String, in chatID: String) {
+        guard let c = chats.firstIndex(where: { $0.id == chatID }) else { return }
+        for m in chats[c].messages.indices where chats[c].messages[m].proposals.contains(where: { $0.id == proposalID }) {
+            chats[c].messages[m].generations.append(card)
+        }
+    }
+
     // MARK: Generations
 
     private func trackGeneration(_ card: GenerationCard, in chatID: String) {
