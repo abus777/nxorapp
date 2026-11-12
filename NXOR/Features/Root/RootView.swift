@@ -51,19 +51,16 @@ struct RootView: View {
                         .transition(.opacity)
 
                     SidebarView()
-                        .onAppear { print("NXDBG SidebarView appeared width=\(drawerWidth)") }
                         .frame(width: drawerWidth)
                         .transition(.move(edge: .leading))
                 }
             }
         }
         .task {
-            print("NXDBG main.task launchSidebar=\(model.launchSidebar)")
             guard model.launchSidebar else { return }
             model.launchSidebar = false
             try? await Task.sleep(for: .milliseconds(1200))
             withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
-            print("NXDBG sidebarOpen set")
         }
     }
 
