@@ -74,17 +74,17 @@ final class APIClient {
     }
 
     func get<T: Decodable>(_ path: String, query: [String: String] = [:], as type: T.Type = T.self) async throws -> T {
-        let (data, _) = try await data(for: makeRequest(path, query: query))
+        let (data, _) = try await self.data(for: makeRequest(path, query: query))
         return try decoder.decode(T.self, from: data)
     }
 
     func post<T: Decodable>(_ path: String, body: (any Encodable)? = nil, as type: T.Type = T.self) async throws -> T {
-        let (data, _) = try await data(for: makeRequest(path, method: "POST", body: body))
+        let (data, _) = try await self.data(for: makeRequest(path, method: "POST", body: body))
         return try decoder.decode(T.self, from: data)
     }
 
     func postVoid(_ path: String, body: (any Encodable)? = nil) async throws {
-        _ = try await data(for: makeRequest(path, method: "POST", body: body))
+        _ = try await self.data(for: makeRequest(path, method: "POST", body: body))
     }
 
     func refresh() async -> Bool {

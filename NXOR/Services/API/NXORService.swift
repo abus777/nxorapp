@@ -131,11 +131,11 @@ enum NXORService {
 
     // MARK: Auth
     static func requestCode(email: String) async throws {
-        try await api.postVoid("auth/magic-link", body: ["email": email])
+        try await api.postVoid("auth/magic-link", body: ["email": email] as [String: String])
     }
 
     static func verifyCode(email: String, code: String) async throws {
-        let request = try api.makeRequest("auth/magic-link/code", method: "POST", body: ["email": email, "code": code])
+        let request = try api.makeRequest("auth/magic-link/code", method: "POST", body: ["email": email, "code": code] as [String: String])
         _ = try await api.data(for: request, retryOnAuth: false)
     }
 
