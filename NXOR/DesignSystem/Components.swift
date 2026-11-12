@@ -50,6 +50,10 @@ struct DisplayTitle: View {
             .font(NX.F.display(size))
             .tracking(-size * 0.03)
             .foregroundStyle(NX.C.ink)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
     }
 }
 
@@ -138,6 +142,8 @@ struct NXChip: View {
                 .font(NX.F.mono(12, .semibold))
                 .tracking(2.2)
                 .foregroundStyle(selected ? NX.C.ink : NX.C.ink2)
+                .lineLimit(1)
+                .fixedSize()
                 .padding(.horizontal, 14)
                 .frame(height: 38)
                 .background(selected ? NX.C.raised : Color.clear)

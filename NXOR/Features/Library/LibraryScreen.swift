@@ -58,8 +58,8 @@ struct LibraryScreen: View {
                         NXSegmented(options: [("generations", "Generations"), ("uploads", "Uploads")], selection: $tab)
                         Spacer(minLength: 0)
                     }
-                    HStack(spacing: 8) {
-                        NXChip(title: "All types", selected: filter == "all") { filter = "all" }
+                    HStack(spacing: 6) {
+                        NXChip(title: "All", selected: filter == "all") { filter = "all" }
                         NXChip(title: "Images", selected: filter == "image") { filter = "image" }
                         NXChip(title: "Videos", selected: filter == "video") { filter = "video" }
                         Spacer(minLength: 0)
