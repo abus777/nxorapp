@@ -1,7 +1,7 @@
 import SwiftUI
 import Observation
 
-enum Route: Hashable {
+enum Route: String, Hashable {
     case chat
     case studio
     case library
@@ -27,6 +27,16 @@ final class AppModel {
     var currentChatID: String? = nil
     var selectedTier = "fast"
     var sidebarOpen = false
+    var launchSheet: String?
+
+    // Launch arguments (e.g. `-route presets -sidebar YES`) let CI open any screen for screenshots.
+    init() {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: "route"), let route = Route(rawValue: raw) { self.route = route }
+        currentChatID = defaults.string(forKey: "chat")
+        sidebarOpen = defaults.bool(forKey: "sidebar")
+        launchSheet = defaults.string(forKey: "sheet")
+    }
 
     var currentChat: ChatThread? {
         guard let id = currentChatID else { return nil }

@@ -1,0 +1,81 @@
+name: iOS build & screenshots
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build for simulator
+        id: build
+        run: |
+          set +e
+          xcodebuild -project NXOR.xcodeproj -target NXOR -configuration Debug \
+            -sdk iphonesimulator -arch arm64 SYMROOT="$PWD/build" \
+            CODE_SIGNING_ALLOWED=NO build > build.log 2>&1
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+          grep -E "error:|warning: .*(deprecated|unused)" build.log | sort -u > out/errors.txt || true
+          tail -60 build.log > out/build-tail.log
+          xcodebuild -version > out/xcode.txt
+
+      - name: Run in simulator and take screenshots
+        if: steps.build.outputs.status == '0'
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)['devices']
+          phones = [x for r, v in d.items() if 'iOS' in r for x in v if x['name'].startswith('iPhone')]
+          pref = [x for x in phones if 'Pro' in x['name'] and 'Max' not in x['name']] or phones
+          print(sorted(pref, key=lambda x: x['name'])[-1]['udid'])")
+          xcrun simctl list devices | grep "$UDID" > out/device.txt
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$UDID" build/Debug-iphonesimulator/NXOR.app
+          shot() {
+            name=$1; shift
+            xcrun simctl terminate "$UDID" com.abus777.nxorapp 2>/dev/null || true
+            xcrun simctl launch "$UDID" com.abus777.nxorapp "$@" > /dev/null
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "out/$name.png"
+          }
+          shot 01-home
+          shot 02-capabilities -sheet capabilities
+          shot 03-sidebar -sidebar YES
+          shot 04-chat-video -chat c1
+          shot 05-chat-image -chat c2
+          shot 06-presets -route presets
+          xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "NXOR"' --style compact 2>/dev/null | grep -iE "fault|error|crash" | tail -40 > out/runtime-errors.txt || true
+
+      - name: Publish results to ci-results branch
+        if: always()
+        run: |
+          echo "commit=${GITHUB_SHA}" > out/status.txt
+          echo "build_status=${{ steps.build.outputs.status }}" >> out/status.txt
+          echo "run=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" >> out/status.txt
+          cd out
+          git init -q -b ci-results
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "CI results for ${GITHUB_SHA}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-results

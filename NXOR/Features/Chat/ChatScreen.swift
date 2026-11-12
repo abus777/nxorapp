@@ -28,6 +28,12 @@ struct ChatScreen: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
         }
+        .onAppear {
+            if model.launchSheet == "capabilities" {
+                model.launchSheet = nil
+                showCapabilities = true
+            }
+        }
         .sheet(isPresented: $showCapabilities) {
             CapabilitiesSheet { cap in
                 showCapabilities = false
