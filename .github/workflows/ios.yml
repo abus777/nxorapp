@@ -97,6 +97,9 @@ jobs:
           shot 27-light-studio -demo YES -route studio -appearance light
           shot 28-photos-denied -demo YES -sheet photos
           shot 29-preset-detail -demo YES -route studio -push presets -preset neon-noir-relight
+          shot 30-run-settings -demo YES -route studio -sheet create -openSettings YES
+          shot 31-run-settings-video -demo YES -route studio -sheet fromChat -openSettings YES
+          shot 32-rtl-arabic -demo YES -AppleLanguages "(ar)" -AppleLocale ar_AE
           mkdir -p out/crashes
           find ~/Library/Logs/DiagnosticReports -name 'NXOR*' -newer build.log -exec cp {} out/crashes/ \; 2>/dev/null || true
           find out -name '*.std*.txt' -size 0 -delete

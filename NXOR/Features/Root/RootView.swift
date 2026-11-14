@@ -3,6 +3,11 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
+    /// R12: Arabic (and other RTL languages) mirror the whole layout.
+    static var isRightToLeft: Bool {
+        Locale.Language(identifier: Locale.preferredLanguages.first ?? "en").characterDirection == .rightToLeft
+    }
+
     var body: some View {
         Group {
             switch model.auth {
@@ -18,6 +23,7 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(model.appearance.scheme)
+        .environment(\.layoutDirection, Self.isRightToLeft ? .rightToLeft : .leftToRight)
         .task { await model.bootstrap() }
     }
 }

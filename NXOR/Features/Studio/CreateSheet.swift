@@ -97,6 +97,10 @@ struct CreateSheet: View {
                 await library.load(app: model)
             }
             focused = studio.prompt.isEmpty
+            if UserDefaults.standard.bool(forKey: "openSettings") {
+                try? await Task.sleep(for: .milliseconds(900))
+                showSettings = true
+            }
         }
         .onChange(of: studio.prompt) { _, _ in
             studio.refreshQuote(model)
