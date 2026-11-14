@@ -2,7 +2,7 @@ name: iOS build & screenshots
 
 on:
   push:
-    branches: [main]
+    branches: [main, v1-app]
 
 permissions:
   contents: write
@@ -62,27 +62,41 @@ jobs:
               sleep 6
               xcrun simctl io "$UDID" screenshot "out/$name.png"
             done
-            if [ "$name" = "04-sidebar" ]; then
+            if [ "$name" = "03-drawer-chat" ]; then
               PID=$(pgrep -f "NXOR.app/NXOR" | head -1)
               [ -n "$PID" ] && sample "$PID" 3 -file "out/$name.sample.txt" >/dev/null 2>&1 || true
             fi
             if xcrun simctl spawn "$UDID" launchctl list | grep -q com.abus777.nxorapp; then echo "$name alive" >> out/alive.txt; else echo "$name DEAD" >> out/alive.txt; fi
           }
-          shot 01-login
-          shot 02-home -demo YES
-          shot 03-capabilities -demo YES -sheet capabilities
-          shot 04-sidebar -demo YES -sidebar YES
-          shot 05-chat-video -demo YES -chat c1
-          shot 06-chat-image -demo YES -chat c2
-          shot 07-studio -demo YES -route studio
-          shot 08-library -demo YES -route library
-          shot 09-presets -demo YES -route presets
-          shot 10-billing -demo YES -route billing
-          shot 11-settings -demo YES -route settings
-          shot 12-preset-detail -demo YES -route presets -preset neon-noir-relight
-          shot 13-studio-refs -demo YES -route studio -refs 2
-          shot 14-library-select -demo YES -route library -select YES
-          shot 15-chat-proposal -demo YES -chat c5
+          shot 01-signin
+          shot 02-chat-home -demo YES
+          shot 03-drawer-chat -demo YES -sidebar YES
+          shot 04-drawer-studio -demo YES -route studio -sidebar YES
+          shot 05-chat-card -demo YES -chat c1
+          shot 06-chat-prompt -demo YES -chat c2
+          shot 07-chat-result -demo YES -chat c3
+          shot 08-move-to-project -demo YES -chat c3 -sheet move
+          shot 09-studio -demo YES -route studio
+          shot 10-create-sheet -demo YES -route studio -sheet create
+          shot 11-studio-from-chat -demo YES -route studio -sheet fromChat
+          shot 12-presets -demo YES -route studio -push presets
+          shot 13-preset-category -demo YES -route studio -push category:product
+          shot 14-result -demo YES -route studio -push result:first
+          shot 15-projects -demo YES -route projects
+          shot 16-new-project -demo YES -route projects -sheet newProject
+          shot 17-project-chats -demo YES -push project
+          shot 18-project-media -demo YES -route studio -push project:studio
+          shot 19-project-chat -demo YES -push projectChat:p1
+          shot 20-project-new-chat -demo YES -push newProjectChat
+          shot 21-account -demo YES -push account
+          shot 22-credits -demo YES -sheet credits
+          shot 23-plans -demo YES -sheet plans
+          shot 24-notify -demo YES -chat c3 -sheet notify
+          shot 25-offline -demo YES -chat c3 -offline YES
+          shot 26-moderation -demo YES -chat c7
+          shot 27-light-studio -demo YES -route studio -appearance light
+          shot 28-photos-denied -demo YES -sheet photos
+          shot 29-preset-detail -demo YES -route studio -push presets -preset neon-noir-relight
           mkdir -p out/crashes
           find ~/Library/Logs/DiagnosticReports -name 'NXOR*' -newer build.log -exec cp {} out/crashes/ \; 2>/dev/null || true
           find out -name '*.std*.txt' -size 0 -delete

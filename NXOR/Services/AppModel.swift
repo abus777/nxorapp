@@ -1,15 +1,8 @@
 import SwiftUI
 import Observation
-
-enum Route: String, Hashable {
-    case chat
-    case studio
-    case library
-    case presets
-    case billing
-    case settings
-    case help
-}
+import Network
+import UserNotifications
+import Photos
 
 enum AuthState: Equatable {
     case checking
@@ -31,7 +24,8 @@ final class AppModel {
     var topups: [TopUp] = MockData.load("topups") ?? []
 
     var chats: [ChatThread] = []
-    var route: Route = .chat
+    var section: AppSection = .chat
+    var path: [Dest] = []
     var currentChatID: String? = nil
     var selectedTier = "fast"
     var sidebarOpen = false
@@ -48,19 +42,130 @@ final class AppModel {
     var currentProjectID: String?
     var lastProjectHint: String?
 
+    // Sheets and prompts owned by the root.
+    var studioDraft: StudioDraft?
+    var showCreateSheet = false
+    var showCredits = false
+    var showPlans = false
+    var showNewProject = false
+    var moveChatID: String?
+    var showNotifyPrompt = false
+    var toast: String?
+    var showPhotosDenied = false
+    var webSearchOn = true
+    var memoryOn = true
+
+    // Device state.
+    var offline = false
+    var queuedMessage: String?
+    var projectMeta: [String: ProjectMeta] = [:]
+    var appearance: Appearance = Appearance(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .dark {
+        didSet { UserDefaults.standard.set(appearance.rawValue, forKey: "appearance") }
+    }
+    /// Asked once, right after the first video is started (R5).
+    var notifyAsked: Bool = UserDefaults.standard.bool(forKey: "notifyAsked") {
+        didSet { UserDefaults.standard.set(notifyAsked, forKey: "notifyAsked") }
+    }
+    /// Generation ids started from chat — their tiles carry "Aa from chat".
+    var chatGenerationIDs: [String: String] = [:]
+
+    private let pathMonitor = NWPathMonitor()
+
+    /// One Studio composer shared by Studio, projects and the create sheet.
+    let studio = StudioModel()
+    let store = Store()
+    /// Finished jobs not yet in a library reload.
+    var freshItems: [LibraryItem] = []
+
+    func register(job: GenerationCard, projectID: String?) {
+        let item = LibraryItem(card: job, projectId: projectID ?? defaultProject?.id)
+        assetIndex[item.dragPayload] = item
+        freshItems.removeAll { $0.id == item.id }
+        freshItems.insert(item, at: 0)
+    }
+
+    func isFromChat(_ item: LibraryItem) -> Bool { chatGenerationIDs[item.id] != nil }
+
+    func chatTitle(for item: LibraryItem) -> String? {
+        guard let chatID = chatGenerationIDs[item.id] else { return nil }
+        return chats.first { $0.id == chatID }?.title
+    }
+
+    /// User projects (the API's default project holds work that is "not in a project").
+    var userProjects: [Project] { projects.filter { !$0.isDefault } }
+    var defaultProject: Project? { projects.first { $0.isDefault } }
+
+    func meta(_ projectID: String?) -> ProjectMeta {
+        guard let projectID else { return ProjectMeta() }
+        return projectMeta[projectID] ?? ProjectMeta()
+    }
+
+    func setMeta(_ meta: ProjectMeta, for projectID: String) {
+        projectMeta[projectID] = meta
+        if let data = try? JSONEncoder().encode(projectMeta) { UserDefaults.standard.set(data, forKey: "projectMeta") }
+    }
+
+    func project(_ id: String?) -> Project? {
+        guard let id else { return nil }
+        return projects.first { $0.id == id }
+    }
+
+    func chats(in projectID: String) -> [ChatThread] {
+        chats.filter { $0.projectID == projectID }
+    }
+
     var currentProject: Project? { projects.first { $0.id == currentProjectID } }
 
     private var streamTask: Task<Void, Never>?
 
-    // Launch arguments (e.g. `-demo YES -route presets -sidebar YES`) let CI open any screen for screenshots.
+    // Launch arguments (e.g. `-demo YES -route studio -push presets`) let CI open any screen for screenshots.
     init() {
         let defaults = UserDefaults.standard
-        if let raw = defaults.string(forKey: "route"), let route = Route(rawValue: raw) { self.route = route }
+        if let data = defaults.data(forKey: "projectMeta"), let saved = try? JSONDecoder().decode([String: ProjectMeta].self, from: data) {
+            projectMeta = saved
+        }
+        if let raw = defaults.string(forKey: "route"), let section = AppSection(rawValue: raw) { self.section = section }
         currentChatID = defaults.string(forKey: "chat")
         launchSidebar = defaults.bool(forKey: "sidebar")
         launchSheet = defaults.string(forKey: "sheet")
         launchPreset = defaults.string(forKey: "preset")
         if defaults.bool(forKey: "demo") { enterDemo() }
+        if let push = defaults.string(forKey: "push") { path = Self.launchPath(push, app: self) }
+        if defaults.bool(forKey: "offline") { offline = true }
+        startPathMonitor()
+    }
+
+    private static func launchPath(_ raw: String, app: AppModel) -> [Dest] {
+        let parts = raw.split(separator: ":").map(String.init)
+        let first = app.userProjects.first?.id ?? ""
+        switch parts.first ?? "" {
+        case "presets": return [.presets]
+        case "category": return [.presets, .presetCategory(parts.count > 1 ? parts[1] : "product")]
+        case "account": return [.account]
+        case "projects": return [.projects]
+        case "project": return [.project(first, parts.count > 1 && parts[1] == "studio" ? .studio : .chat)]
+        case "projectChat": return [.project(first, .chat), .projectChat(parts.count > 1 ? parts[1] : "p1")]
+        case "newProjectChat": return [.project(first, .chat), .newProjectChat(first)]
+        case "result":
+            let first = app.presets.first { $0.kind == "image" }.map { "demo-\($0.slug)" } ?? ""
+            return [.result(parts.count > 1 && parts[1] != "first" ? parts[1] : first)]
+        default: return []
+        }
+    }
+
+    private func startPathMonitor() {
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                guard let self, !UserDefaults.standard.bool(forKey: "offline") else { return }
+                let wasOffline = self.offline
+                self.offline = path.status != .satisfied
+                if wasOffline, !self.offline, let queued = self.queuedMessage {
+                    self.queuedMessage = nil
+                    self.send(queued)
+                }
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "nxor.path"))
     }
 
     var isDemo: Bool { auth == .demo }
@@ -94,6 +199,9 @@ final class AppModel {
         chats = MockData.chats
         projects = MockData.projects
         currentProjectID = MockData.projects.first?.id
+        for (id, meta) in MockData.projectMeta where projectMeta[id] == nil { projectMeta[id] = meta }
+        if let video = presets.first(where: { $0.kind == "video" }) { chatGenerationIDs["demo-\(video.slug)"] = "c3" }
+        if let image = presets.first(where: { $0.kind == "image" }) { chatGenerationIDs["demo-\(image.slug)"] = "p1" }
         auth = .demo
     }
 
@@ -105,7 +213,8 @@ final class AppModel {
             account = me.account
             lastProjectHint = me.user.lastProjectId
             auth = .live
-            route = .chat
+            section = .chat
+            path = []
             currentChatID = nil
             await loadLive()
         } catch {
@@ -119,7 +228,8 @@ final class AppModel {
         if auth == .live { await NXORService.logout() }
         chats = []
         currentChatID = nil
-        route = .chat
+        section = .chat
+        path = []
         sidebarOpen = false
         auth = .signedOut
     }
@@ -132,7 +242,8 @@ final class AppModel {
         async let caps = try? NXORService.capabilities()
         async let presets = try? NXORService.presets()
         if let page = await sessions {
-            chats = page.items.map { ChatThread(id: $0.id, title: $0.title ?? "New chat", messages: [], loaded: false) }
+            let links = (UserDefaults.standard.dictionary(forKey: "chatProjects") as? [String: String]) ?? [:]
+            chats = page.items.map { ChatThread(id: $0.id, title: $0.title ?? "New chat", messages: [], loaded: false, projectID: links[$0.id]) }
         }
         if let t = await tiers, !t.isEmpty { self.tiers = t }
         if let c = await caps, !c.isEmpty { capabilities = c }
@@ -211,15 +322,193 @@ final class AppModel {
 
     // MARK: Navigation
 
-    func open(_ route: Route) {
-        self.route = route
+    /// Switch root (Chat / Studio / Projects) from the ≡ menu.
+    func open(_ section: AppSection) {
+        self.section = section
+        path = []
         withAnimation(NX.Motion.pop) { sidebarOpen = false }
+    }
+
+    func push(_ dest: Dest) {
+        withAnimation(NX.Motion.pop) { sidebarOpen = false }
+        path.append(dest)
     }
 
     func openChat(_ id: String?) {
         currentChatID = id
-        open(.chat)
+        if let id, let chat = chats.first(where: { $0.id == id }), let project = chat.projectID {
+            section = .chat
+            path = [.project(project, .chat), .projectChat(id)]
+            withAnimation(NX.Motion.pop) { sidebarOpen = false }
+        } else {
+            open(.chat)
+        }
         if let id, auth == .live { Task { await loadChat(id) } }
+    }
+
+    func newChat() {
+        currentChatID = nil
+        open(.chat)
+    }
+
+    /// Hand a prompt to Studio (S2 / S4): opens the create sheet with "From chat ×".
+    func openInStudio(_ draft: StudioDraft) {
+        studioDraft = draft
+        if let project = draft.projectID {
+            section = .studio
+            path = [.project(project, .studio)]
+        } else {
+            open(.studio)
+        }
+        showCreateSheet = true
+    }
+
+    func showToast(_ text: String) {
+        toast = text
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            if toast == text { toast = nil }
+        }
+    }
+
+    // MARK: Chats ↔ projects
+
+    @MainActor
+    func moveChat(_ chatID: String, to project: Project) async {
+        guard let i = chats.firstIndex(where: { $0.id == chatID }) else { return }
+        chats[i].projectID = project.id
+        var links = (UserDefaults.standard.dictionary(forKey: "chatProjects") as? [String: String]) ?? [:]
+        links[chatID] = project.id
+        UserDefaults.standard.set(links, forKey: "chatProjects")
+        let refs = chats[i].messages.flatMap(\.allGenerations).compactMap { card -> LibraryRef? in
+            guard let id = card.generationId else { return nil }
+            return LibraryRef(kind: card.kind.rawValue, id: id)
+        }
+        if auth == .live, !refs.isEmpty {
+            _ = try? await NXORService.libraryMove(refs, to: project.id)
+        }
+        showToast("Moved to \(project.name)")
+    }
+
+    @MainActor
+    func renameChat(_ chatID: String, to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let i = chats.firstIndex(where: { $0.id == chatID }) else { return }
+        chats[i].title = trimmed
+    }
+
+    /// Start a new chat inside a project (12a).
+    func startProjectChat(_ projectID: String) {
+        currentChatID = nil
+        pendingProjectID = projectID
+    }
+
+    var pendingProjectID: String?
+
+    // MARK: Prompt blocks → cards (05b → 05)
+
+    /// "Use this prompt → choose model": a local draft card under the prompt block.
+    @MainActor
+    func addLocalProposal(prompt: String, kind: GenerationCard.Kind, after messageID: UUID, in chatID: String) {
+        guard let c = chats.firstIndex(where: { $0.id == chatID }),
+              let m = chats[c].messages.firstIndex(where: { $0.id == messageID }) else { return }
+        let families = kind == .video ? videoModels : imageModels
+        let label = families.first?.label ?? (kind == .video ? "Kling 3.0" : "Nano Banana Pro")
+        let proposal = ChatProposal(id: "local-\(UUID().uuidString)", kind: kind.rawValue, prompt: prompt, modelLabel: label, modelSlug: nil, credits: auth == .live ? nil : (kind == .video ? 1050 : 25))
+        chats[c].messages[m].proposals.append(proposal)
+    }
+
+    /// Runs a local draft with Studio's generate endpoint.
+    @MainActor
+    func runLocalProposal(_ proposal: ChatProposal, label: String, price: Int?, in chatID: String) async {
+        updateProposal(proposal.id, in: chatID) { $0.state = .running }
+        let kind: GenerationCard.Kind = proposal.kind == "video" ? .video : .image
+        if auth != .live {
+            try? await Task.sleep(for: .seconds(1))
+            updateProposal(proposal.id, in: chatID) { $0.state = .submitted }
+            var card = GenerationCard(kind: kind, model: label, credits: price ?? 0, status: .completed, prompt: proposal.prompt)
+            let sample = presets.first { $0.kind == proposal.kind }
+            card.thumbnailUrl = sample?.previewImageUrl
+            card.url = sample?.previewVideoUrl ?? sample?.previewImageUrl
+            appendGeneration(card, to: proposal.id, in: chatID)
+            account.available -= Double(price ?? 0)
+            didStartGeneration(kind: kind)
+            return
+        }
+        let families = kind == .video ? videoModels : imageModels
+        let family = families.first { $0.label == label } ?? families.first
+        let op = kind == .video ? "text-to-video" : "text-to-image"
+        let slug = proposal.modelSlug ?? family?.variants.first { ($0.dims["operation"] ?? op) == op }?.slug
+        guard let slug else {
+            updateProposal(proposal.id, in: chatID) { $0.state = .open }
+            errorMessage = "No model available for this prompt."
+            return
+        }
+        do {
+            let projectID = chats.first { $0.id == chatID }?.projectID ?? defaultProject?.id
+            let body = GenerateBody(modelSlug: slug, prompt: proposal.prompt, projectId: projectID, idempotencyKey: UUID().uuidString)
+            let id = try await NXORService.generate(kind: kind.rawValue, body: body)
+            updateProposal(proposal.id, in: chatID) { $0.state = .submitted }
+            let card = GenerationCard(generationId: id, kind: kind, model: label, credits: price ?? 0, status: .processing, prompt: proposal.prompt)
+            appendGeneration(card, to: proposal.id, in: chatID)
+            chatGenerationIDs[id] = chatID
+            trackGeneration(card, in: chatID)
+            didStartGeneration(kind: kind)
+            await refreshBalance()
+        } catch {
+            updateProposal(proposal.id, in: chatID) { $0.state = .open }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: Photos (R6)
+
+    @MainActor
+    func saveToPhotos(url: URL?, isVideo: Bool) async {
+        guard let url else { return }
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else {
+            showPhotosDenied = true
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("nxor-\(UUID().uuidString).\(isVideo ? "mp4" : (url.pathExtension.isEmpty ? "jpg" : url.pathExtension))")
+            try data.write(to: file)
+            try await PHPhotoLibrary.shared().performChanges {
+                let request = PHAssetCreationRequest.forAsset()
+                request.addResource(with: isVideo ? .video : .photo, fileURL: file, options: nil)
+            }
+            showToast("Saved to Photos")
+        } catch {
+            errorMessage = "Couldn't save: \(error.localizedDescription)"
+        }
+    }
+
+    // MARK: Notifications (R5)
+
+    @MainActor
+    func requestNotifications() async {
+        notifyAsked = true
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+    }
+
+    func notifyReady(kind: GenerationCard.Kind, title: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "NXOR · Your \(kind == .video ? "video" : "picture") is ready"
+        content.body = "\(title) · tap to open"
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    /// After the first video starts, ask once whether to ping when it's ready.
+    func didStartGeneration(kind: GenerationCard.Kind) {
+        if kind == .video, !notifyAsked { showNotifyPrompt = true }
+    }
+
+    func openChatLegacy(_ id: String?) {
+        openChat(id)
     }
 
     @MainActor
@@ -264,17 +553,25 @@ final class AppModel {
 
         let localID = currentChatID ?? "local-\(UUID().uuidString)"
         if currentChatID == nil {
-            chats.insert(ChatThread(id: localID, title: String(trimmed.prefix(48)), messages: []), at: 0)
+            chats.insert(ChatThread(id: localID, title: String(trimmed.prefix(48)), messages: [], projectID: pendingProjectID, tier: selectedTier), at: 0)
             currentChatID = localID
+            pendingProjectID = nil
         }
         var userMessage = ChatMessage(role: .user, text: trimmed)
         userMessage.files = attachments.compactMap(URL.init(string:))
+        if offline {
+            userMessage.pending = true
+            append(userMessage, to: localID)
+            queuedMessage = trimmed
+            return
+        }
         append(userMessage, to: localID)
+        let outgoing = contextualized(trimmed, chatID: localID)
 
         isStreaming = true
         streamTask = Task { @MainActor in
             if auth == .live {
-                await streamLive(trimmed, attachments: attachments, chatID: localID)
+                await streamLive(outgoing, attachments: attachments, chatID: localID)
             } else {
                 await streamDemo(chatID: localID)
             }
@@ -282,6 +579,25 @@ final class AppModel {
             isStreaming = false
             await refreshBalance()
         }
+    }
+
+    /// The first message of a project chat carries the project's instructions, so NXOR "knows this project".
+    private func contextualized(_ text: String, chatID: String) -> String {
+        guard let chat = chats.first(where: { $0.id == chatID }), let projectID = chat.projectID,
+              chat.messages.filter({ $0.role == .user }).count <= 1,
+              let project = project(projectID) else { return text }
+        let m = meta(projectID)
+        var context = "Project: \(project.name) (\(m.kind.shortTitle))."
+        if !m.about.isEmpty { context += " Instructions: \(m.about)" }
+        if m.defaultFormat != "Auto" { context += " Default format: \(m.defaultFormat)." }
+        return "[\(context)]\n\n\(text)"
+    }
+
+    @MainActor
+    func cancelQueued() {
+        queuedMessage = nil
+        guard let id = currentChatID, let i = chats.firstIndex(where: { $0.id == id }) else { return }
+        chats[i].messages.removeAll { $0.pending }
     }
 
     @MainActor
@@ -317,7 +633,12 @@ final class AppModel {
                 switch event {
                 case let .start(sessionId, _):
                     if sessionId != chatID, let i = chats.firstIndex(where: { $0.id == chatID }) {
-                        chats[i] = ChatThread(id: sessionId, title: chats[i].title, messages: chats[i].messages)
+                        chats[i] = ChatThread(id: sessionId, title: chats[i].title, messages: chats[i].messages, projectID: chats[i].projectID, tier: chats[i].tier)
+                        if let projectID = chats[i].projectID {
+                            var links = (UserDefaults.standard.dictionary(forKey: "chatProjects") as? [String: String]) ?? [:]
+                            links[sessionId] = projectID
+                            UserDefaults.standard.set(links, forKey: "chatProjects")
+                        }
                         if currentChatID == chatID { currentChatID = sessionId }
                         chatID = sessionId
                     }
@@ -340,7 +661,9 @@ final class AppModel {
                         prompt: prompt ?? ""
                     )
                     reply.generations.append(card)
+                    chatGenerationIDs[generationId] = chatID
                     trackGeneration(card, in: chatID)
+                    didStartGeneration(kind: card.kind)
                 case let .generationError(_, message):
                     errorMessage = message
                 case let .proposal(proposal):
@@ -391,7 +714,12 @@ final class AppModel {
         if auth != .live {
             try? await Task.sleep(for: .seconds(1))
             updateProposal(proposal.id, in: chatID) { $0.state = .submitted }
-            appendGeneration(GenerationCard(kind: proposal.kind == "video" ? .video : .image, model: proposal.modelLabel, credits: Int(proposal.credits ?? 0), status: .completed, prompt: proposal.prompt), to: proposal.id, in: chatID)
+            var card = GenerationCard(kind: proposal.kind == "video" ? .video : .image, model: proposal.modelLabel, credits: Int(proposal.credits ?? 0), status: .completed, prompt: proposal.prompt)
+            let sample = presets.first { $0.kind == proposal.kind }
+            card.thumbnailUrl = sample?.previewImageUrl
+            card.url = sample?.previewVideoUrl ?? sample?.previewImageUrl
+            appendGeneration(card, to: proposal.id, in: chatID)
+            didStartGeneration(kind: card.kind)
             return
         }
         do {
@@ -399,7 +727,9 @@ final class AppModel {
             updateProposal(proposal.id, in: chatID) { $0.state = .submitted }
             let card = GenerationCard(generationId: id, kind: proposal.kind == "video" ? .video : .image, model: proposal.modelLabel, credits: Int(proposal.credits ?? 0), status: .processing, prompt: proposal.prompt)
             appendGeneration(card, to: proposal.id, in: chatID)
+            if let id { chatGenerationIDs[id] = chatID }
             trackGeneration(card, in: chatID)
+            didStartGeneration(kind: card.kind)
             await refreshBalance()
         } catch {
             updateProposal(proposal.id, in: chatID) { $0.state = .open }
@@ -457,7 +787,12 @@ final class AppModel {
                         }
                         c.errorMessage = generation.errorMessage
                     }
-                    if !generation.isRunning { return }
+                    if !generation.isRunning {
+                        if generation.status == "completed", let title = chats.first(where: { $0.id == chatID })?.title {
+                            notifyReady(kind: card.kind, title: title)
+                        }
+                        return
+                    }
                 }
                 try? await Task.sleep(for: .seconds(attempt < 20 ? 3 : 6))
             }

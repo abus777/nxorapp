@@ -101,6 +101,25 @@ struct LibraryItem: Identifiable, Hashable {
         status = "completed"
     }
 
+    /// A finished Studio or chat job shown before the library reloads.
+    init(card: GenerationCard, projectId: String?) {
+        id = card.generationId ?? UUID().uuidString
+        source = card.kind == .video ? .video : .image
+        isVideo = card.kind == .video
+        previewURL = card.thumbnailUrl ?? card.url
+        url = card.url
+        fileKey = nil
+        self.projectId = projectId
+        prompt = card.prompt
+        model = card.model
+        createdAt = .now
+        width = nil
+        height = nil
+        duration = card.kind == .video ? 5 : nil
+        renderSeconds = nil
+        status = card.status.rawValue
+    }
+
     private static func parse(_ s: String) -> Date? {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -120,9 +139,12 @@ final class LibraryModel {
     /// Demo mode keeps everything in memory so folder moves and uploads still behave.
     private static var demoStore: [LibraryItem]?
 
+    /// nil = everything (Studio); an id = one project's media.
+    var scope: String?
+
     @MainActor
     func load(app: AppModel, force: Bool = false) async {
-        let project = app.currentProjectID
+        let project = scope
         if !force, loaded, loadedProject == .some(project) { return }
         guard !loading else { return }
         loading = true
@@ -138,8 +160,8 @@ final class LibraryModel {
             uploads = (await refs)?.items.map(LibraryItem.init(reference:)) ?? []
         } else {
             let all = Self.demo(app)
-            items = all.filter { $0.source != .reference && $0.projectId == project }
-            uploads = all.filter { $0.source == .reference && $0.projectId == project }
+            items = all.filter { $0.source != .reference && (project == nil || $0.projectId == project) }
+            uploads = all.filter { $0.source == .reference && (project == nil || $0.projectId == project) }
         }
         register(app)
     }
@@ -148,7 +170,7 @@ final class LibraryModel {
         if let store = demoStore { return store }
         let ids = app.projects.map(\.id)
         let store = app.presets.prefix(24).enumerated().map { i, p in
-            LibraryItem(demo: p, index: i, projectId: ids.isEmpty ? nil : ids[i % min(ids.count, 2)])
+            LibraryItem(demo: p, index: i, projectId: ids.isEmpty ? nil : ids[i % ids.count])
         }
         demoStore = store
         return store
@@ -216,7 +238,7 @@ final class LibraryModel {
         let item: LibraryItem
         if app.auth == .live {
             do {
-                let ref = try await NXORService.uploadReference(data: jpeg, filename: "photo.jpg", mimeType: "image/jpeg", projectId: app.currentProjectID)
+                let ref = try await NXORService.uploadReference(data: jpeg, filename: "photo.jpg", mimeType: "image/jpeg", projectId: scope ?? app.defaultProject?.id)
                 item = LibraryItem(reference: ref)
             } catch {
                 app.errorMessage = error.localizedDescription
@@ -225,7 +247,7 @@ final class LibraryModel {
         } else {
             let file = FileManager.default.temporaryDirectory.appendingPathComponent("upload-\(UUID().uuidString).jpg")
             try? jpeg.write(to: file)
-            item = LibraryItem(localUpload: file, image: image, projectId: app.currentProjectID)
+            item = LibraryItem(localUpload: file, image: image, projectId: scope ?? app.defaultProject?.id)
             Self.demoStore?.insert(item, at: 0)
         }
         uploads.insert(item, at: 0)

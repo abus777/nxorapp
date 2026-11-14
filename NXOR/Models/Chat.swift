@@ -15,6 +15,9 @@ struct ChatThread: Identifiable, Hashable {
     var title: String
     var messages: [ChatMessage]
     var loaded = true
+    var projectID: String? = nil
+    var tier: String = "fast"
+    var updatedAt: Date = .now
 }
 
 struct ChatMessage: Identifiable, Hashable {
@@ -29,6 +32,8 @@ struct ChatMessage: Identifiable, Hashable {
     var proposals: [ChatProposal] = []
     var files: [URL] = []
     var steps: [String] = []
+    /// Waiting for the network (R10).
+    var pending = false
 
     var allGenerations: [GenerationCard] { (generation.map { [$0] } ?? []) + generations }
 }

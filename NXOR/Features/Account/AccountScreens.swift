@@ -1,301 +1,392 @@
 import SwiftUI
+import UIKit
 
-struct BillingScreen: View {
+/// R2: account — profile, plan and credits, app settings, support, sign out, delete (R3).
+struct AccountScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openURL) private var openURL
-    @State private var yearly = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Plans and credit packs are managed on nxor.ai.")
-                    .font(NX.F.body(16)).foregroundStyle(NX.C.ink2)
-
-                HStack(spacing: 0) {
-                    stat("Balance", Int(model.account.available).formatted(), unit: nil, gradient: true)
-                    Rectangle().fill(NX.C.line).frame(width: 1)
-                    stat("Reserved", Int(model.account.reserved).formatted(), unit: nil, gradient: false)
-                    Rectangle().fill(NX.C.line).frame(width: 1)
-                    stat("Monthly", Int(model.account.monthlyGrant).formatted(), unit: nil, gradient: false)
-                }
-                .frame(height: 96)
-                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-
-                NXSegmented(options: [(false, "Monthly"), (true, "Annual · −22%")], selection: $yearly)
-
-                ForEach(model.plans) { plan in
-                    planCard(plan)
-                }
-
-                Button {
-                    if let url = URL(string: "https://nxor.ai/billing") { openURL(url) }
-                } label: {
-                    HStack {
-                        MetaLabel("Manage on nxor.ai", color: NX.C.ink)
-                        Spacer()
-                        Image(systemName: "arrow.up.right").foregroundStyle(NX.C.ink2)
-                    }
-                    .padding(16)
-                    .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
-                }
-                .buttonStyle(PressStyle())
-            }
-            .padding(16)
-        }
-    }
-
-    private func stat(_ title: String, _ value: String, unit: String?, gradient: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MetaLabel(title, size: 9)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(value)
-                    .font(NX.F.display(22))
-                    .foregroundStyle(gradient ? AnyShapeStyle(NX.G.credits) : AnyShapeStyle(NX.C.ink))
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                if let unit { MetaLabel(unit, size: 9) }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-    }
-
-    private func planCard(_ plan: Plan) -> some View {
-        let current = plan.slug == model.account.planSlug
-        let monthly = yearly ? (Double(plan.priceYearlyUsd) ?? 0) / 12 : Double(plan.priceMonthlyUsd) ?? 0
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                MetaLabel(plan.name, color: NX.C.ink, size: 13)
-                Spacer()
-                if current { MetaLabel("Current plan", color: NX.C.accent, size: 10) }
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if let anchor = plan.anchorMonthlyUsd {
-                    Text("$\(anchor)").font(NX.F.body(15)).strikethrough().foregroundStyle(NX.C.muted)
-                }
-                Text(String(format: "$%.2f", monthly)).font(NX.F.display(34)).foregroundStyle(NX.C.ink)
-                MetaLabel("/ mo", size: 11)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                feature("\(plan.monthlyTokenGrant.formatted()) credits / month")
-                if plan.parallelGenerations { feature("Parallel generations") }
-                if plan.prioritySupport { feature("Priority support") }
-            }
-        }
-        .padding(18)
-        .background(current ? NX.C.raised : NX.C.surface)
-        .overlay(Rectangle().strokeBorder(current ? AnyShapeStyle(NX.G.frame) : AnyShapeStyle(NX.C.line), lineWidth: 1))
-    }
-
-    private func feature(_ text: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(NX.C.accent)
-            MetaLabel(text, color: NX.C.ink2, size: 10)
-        }
-    }
-}
-
-struct SettingsScreen: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.openURL) private var openURL
+    @State private var confirmDelete = false
     @State private var confirmSignOut = false
-    @State private var memoryOn = true
-    @State private var memoryText: String?
-    @State private var memoryLoaded = false
-    @State private var confirmClearMemory = false
-    @State private var referral: ReferralInfo?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-
-                HStack(spacing: 16) {
-                    StripedAvatar(size: 56)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(model.account.name).font(NX.F.body(20, .semibold)).foregroundStyle(NX.C.ink)
-                        Text(model.account.email).font(NX.F.body(15)).foregroundStyle(NX.C.ink3)
-                        MetaLabel("\(model.account.planName) · \(Int(model.account.available).formatted()) credits", color: NX.C.ink3, size: 10)
+        @Bindable var model = model
+        VStack(spacing: 0) {
+            NavHeader {
+                BackLink(title: "Back")
+            } title: {
+                ScreenTitle(text: "Account", centered: true)
+            } trailing: {
+                Color.clear.frame(width: 60, height: 1)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    section("Profile") {
+                        row(model.account.name, subtitle: model.isDemo ? "Demo · not signed in" : "Signed in with email · \(model.account.email)", value: nil) {}
                     }
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    MetaLabel("Memory")
-                    Toggle(isOn: $memoryOn) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Remember things about me").font(NX.F.body(16)).foregroundStyle(NX.C.ink)
-                            Text("NXOR keeps short notes from your chats to personalise answers.")
-                                .font(NX.F.body(13)).foregroundStyle(NX.C.ink3)
+                    section("Plan and credits") {
+                        row(model.account.planName, subtitle: "Monthly credits \(Int(model.account.monthlyGrant).formatted())", value: "Manage") { model.showPlans = true }
+                        row("Credits", subtitle: nil, value: Int(model.account.available).formatted()) { model.showCredits = true }
+                    }
+                    section("App") {
+                        row("Notifications", subtitle: "When a video is ready", value: nil) {
+                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
                         }
-                    }
-                    .tint(NX.C.accent)
-                    .onChange(of: memoryOn) { _, on in
-                        guard memoryLoaded, model.auth == .live else { return }
-                        Task { try? await NXORService.setMemory(enabled: on) }
-                    }
-                    if let memoryText, !memoryText.isEmpty {
-                        Text(memoryText).font(NX.F.mono(12)).foregroundStyle(NX.C.ink2).lineLimit(6)
-                        Button("Clear memory", role: .destructive) { confirmClearMemory = true }
-                            .font(NX.F.mono(12, .semibold))
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-
-                VStack(alignment: .leading, spacing: 12) {
-                    MetaLabel("Invite friends")
-                    if let referral {
-                        Text(verbatim: referralPitch(referral))
-                            .font(NX.F.body(15)).foregroundStyle(NX.C.ink2)
-                        HStack(spacing: 0) {
-                            refStat("Signups", "\(referral.signups)")
-                            refStat("Paid", "\(referral.paid)")
-                            refStat("Earned", "\(Int(referral.creditsEarned)) cr")
+                        row("Language", subtitle: nil, value: Locale.current.localizedString(forLanguageCode: Locale.current.language.languageCode?.identifier ?? "en")?.capitalized) {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                         }
-                        if let url = URL(string: referral.link) {
-                            ShareLink(item: url, message: Text("Try NXOR — every AI model in one chat")) {
-                                HStack {
-                                    Text(referral.link).font(NX.F.mono(12)).lineLimit(1)
-                                    Spacer()
-                                    Image(systemName: "square.and.arrow.up")
-                                }
-                                .foregroundStyle(NX.C.ink)
-                                .padding(14)
-                                .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
+                        Menu {
+                            Picker("Appearance", selection: $model.appearance) {
+                                ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+                            }
+                        } label: {
+                            rowLabel("Appearance", subtitle: nil, value: model.appearance.title, chevron: "chevron.up.chevron.down")
+                        }
+                        .buttonStyle(.plain)
+                        Toggle(isOn: Binding(get: { model.memoryOn }, set: { on in
+                            model.memoryOn = on
+                            if model.auth == .live { Task { try? await NXORService.setMemory(enabled: on) } }
+                        })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Memory").font(NX.F.body(15)).foregroundStyle(NX.C.ink)
+                                Text("Keep short notes from chats to personalise answers").font(NX.F.body(12)).foregroundStyle(NX.C.ink3)
                             }
                         }
-                    } else {
-                        Text(model.isDemo ? "Sign in to get your invite link." : "Loading…")
-                            .font(NX.F.body(14)).foregroundStyle(NX.C.ink3)
+                        .tint(NX.C.accent)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 56)
                     }
+                    section("Support") {
+                        row("Help", subtitle: nil, value: nil) { model.push(.help) }
+                        row("Terms of Use", subtitle: nil, value: nil) { openURL(URL(string: "https://nxor.ai/legal/terms")!) }
+                        row("Privacy Policy", subtitle: nil, value: nil) { openURL(URL(string: "https://nxor.ai/legal/privacy")!) }
+                    }
+                    VStack(spacing: 0) {
+                        Button { if model.isDemo { Task { await model.signOut() } } else { confirmSignOut = true } } label: {
+                            Text(model.isDemo ? "Sign in" : "Sign out").font(NX.F.body(15)).foregroundStyle(NX.C.ink)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).frame(minHeight: 52)
+                        }
+                        if !model.isDemo {
+                            Button { confirmDelete = true } label: {
+                                Text("Delete account").font(NX.F.body(15)).foregroundStyle(NX.C.danger)
+                                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).frame(minHeight: 52)
+                            }
+                        }
+                    }
+                    .background(NX.C.tint.opacity(0.035))
                 }
                 .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-
-                VStack(spacing: 0) {
-                    row("Manage plan", icon: "creditcard") { model.open(.billing) }
-                    row("Help center", icon: "questionmark.circle") { model.open(.help) }
-                    row("Open nxor.ai", icon: "safari") { if let u = URL(string: "https://nxor.ai") { openURL(u) } }
-                    row("Terms", icon: "doc.text") { if let u = URL(string: "https://nxor.ai/legal/terms") { openURL(u) } }
-                    row("Privacy", icon: "lock.shield") { if let u = URL(string: "https://nxor.ai/legal/privacy") { openURL(u) } }
-                }
-                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-
-                if model.isDemo {
-                    NXPrimaryButton(title: "Sign in to NXOR") { Task { await model.signOut() } }
-                } else {
-                    NXSecondaryButton(title: "Sign out", icon: "rectangle.portrait.and.arrow.right") { confirmSignOut = true }
-                        .frame(maxWidth: .infinity)
-                }
-
-                MetaLabel("NXOR for iOS · \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")", size: 10)
             }
-            .padding(16)
+        }
+        .background(NX.C.bg.ignoresSafeArea())
+        .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete account", role: .destructive) {
+                // The API has no delete endpoint yet: account deletion finishes on nxor.ai, then we sign out here.
+                openURL(URL(string: "https://nxor.ai/settings")!)
+                Task { await model.signOut() }
+            }
+            Button("Manage subscription") {
+                openURL(URL(string: "https://apps.apple.com/account/subscriptions")!)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All chats, media and remaining credits are deleted for good. An active subscription keeps renewing until you cancel it in Apple ID settings.")
         }
         .confirmationDialog("Sign out of NXOR?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await model.signOut() } }
         }
-        .confirmationDialog("Clear everything NXOR remembers?", isPresented: $confirmClearMemory, titleVisibility: .visible) {
-            Button("Clear memory", role: .destructive) {
-                memoryText = nil
-                Task { try? await NXORService.clearMemory() }
+        .task { await model.refreshBalance() }
+    }
+
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(title)
+            VStack(spacing: 0) { content() }.background(NX.C.tint.opacity(0.035))
+        }
+    }
+
+    private func row(_ title: String, subtitle: String?, value: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) { rowLabel(title, subtitle: subtitle, value: value, chevron: "chevron.right") }
+            .buttonStyle(.plain)
+    }
+
+    private func rowLabel(_ title: String, subtitle: String?, value: String?, chevron: String) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(NX.F.body(15)).foregroundStyle(NX.C.ink)
+                if let subtitle { Text(subtitle).font(NX.F.body(12)).foregroundStyle(NX.C.ink3).lineLimit(1) }
             }
+            Spacer()
+            if let value { Text(value).font(NX.F.body(14)).foregroundStyle(NX.C.ink3) }
+            Image(systemName: chevron).font(.system(size: 11, weight: .semibold)).foregroundStyle(NX.C.ink3)
         }
-        .task {
-            guard model.auth == .live else { memoryLoaded = true; return }
-            if let m = try? await NXORService.memory() {
-                memoryOn = m.enabled
-                memoryText = m.content
-            }
-            memoryLoaded = true
-            referral = try? await NXORService.referral()
-        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 52)
+        .contentShape(Rectangle())
     }
+}
 
-    private func referralPitch(_ r: ReferralInfo) -> String {
-        var text = "Get \(Int(r.rewardPerReferral)) credits for every friend who joins"
-        if let discount = r.discountPercent { text += " — they get \(discount)% off" }
-        return text + "."
-    }
+/// 14: credits — App Store only, with Restore Purchases.
+struct CreditsSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @State private var pack = 1
 
-    private func refStat(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            MetaLabel(title, size: 9)
-            Text(value).font(NX.F.display(20)).foregroundStyle(NX.C.ink)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    private let amounts = [1000, 3000, 10000]
 
-    private func row(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 14) {
-                Image(systemName: icon).foregroundStyle(NX.C.accent).frame(width: 22)
-                Text(title).font(NX.F.body(16)).foregroundStyle(NX.C.ink)
+    var body: some View {
+        let store = model.store
+        VStack(spacing: 16) {
+            HStack {
+                SkewIconButton(systemName: "xmark", label: "Close") { dismiss() }
                 Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(NX.C.muted)
+                Text("CREDITS").font(NX.F.display(18)).foregroundStyle(NX.C.inkSoft)
+                Spacer()
+                SkewButton(title: "History", size: .s, style: .glass) { openURL(URL(string: "https://nxor.ai/billing")!) }
             }
-            .padding(.horizontal, 16)
-            .frame(height: 54)
-            .overlay(alignment: .bottom) { Hairline() }
-            .contentShape(Rectangle())
+            VStack(spacing: 4) {
+                Text(Int(model.account.available).formatted()).font(NX.F.display(40)).foregroundStyle(NX.C.inkSoft)
+                Text("≈ \(Int(model.account.available) / 40) pictures or \(Int(model.account.available) / 350) videos · \(model.account.planName)")
+                    .font(NX.F.body(13)).foregroundStyle(NX.C.ink3)
+            }
+            HStack(spacing: 6) {
+                ForEach(amounts.indices, id: \.self) { i in
+                    let id = Store.creditPackIDs[i]
+                    Button { pack = i } label: {
+                        VStack(spacing: 4) {
+                            Text(amounts[i].formatted()).font(NX.F.display(18)).foregroundStyle(pack == i ? NX.C.btnInk : NX.C.inkSoft)
+                            Text("credits").font(NX.F.body(11)).foregroundStyle(pack == i ? NX.C.btnInk.opacity(0.7) : NX.C.ink3)
+                            Text(store.price(id) ?? "—").font(NX.F.body(13, .semibold)).foregroundStyle(pack == i ? NX.C.btnInk : NX.C.ink)
+                                .padding(.top, 6)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background {
+                            let shape = Parallelogram(slant: 0.07, radius: 8)
+                            if pack == i { shape.fill(NX.G.silver) } else { shape.fill(NX.C.tint.opacity(0.04)) }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(pack == i ? .isSelected : [])
+                }
+            }
+            SkewButton(title: store.purchasing ? "Buying…" : "Buy \(amounts[pack].formatted()) credits", size: .l, style: .metal, fullWidth: true, enabled: !store.purchasing) {
+                Task {
+                    if await store.buy(Store.creditPackIDs[pack]) {
+                        await model.refreshBalance()
+                        dismiss()
+                    }
+                }
+            }
+            SkewButton(title: "See plans", size: .m, style: .dark, fullWidth: true) {
+                dismiss()
+                model.showPlans = true
+            }
+            HStack(spacing: 4) {
+                Text("Paid with your Apple Account ·")
+                Button("Restore Purchases") { Task { await store.restore() } }.underline()
+                Text("·")
+                Link("Terms", destination: URL(string: "https://nxor.ai/legal/terms")!).underline()
+                Text("·")
+                Link("Privacy", destination: URL(string: "https://nxor.ai/legal/privacy")!).underline()
+            }
+            .font(NX.F.body(11))
+            .foregroundStyle(NX.C.ink3)
+            .tint(NX.C.ink2)
+            Spacer()
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .task { await store.load() }
+        .alert("App Store", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(store.message ?? "") }
+    }
+}
+
+/// R4: plans — price, period, auto-renewal terms and Restore before the button.
+struct PlansSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var selected = 0
+
+    private struct PlanRow {
+        let title: String
+        let price: String
+        let note: String
+        let detail: String
+    }
+
+    private var rows: [PlanRow] {
+        let store = model.store
+        func plan(_ slug: String) -> Plan? { model.plans.first { $0.slug.contains(slug) || $0.name.lowercased().contains(slug) } }
+        return [
+            PlanRow(title: "Try → Starter", price: store.price(Store.planIDs[0]).map { "\($0) / month" } ?? "$\(plan("starter")?.priceMonthlyUsd ?? "9.99") / month",
+                    note: "3-day trial · cancel anytime", detail: "\((plan("starter")?.monthlyTokenGrant ?? 4000).formatted()) credits a month · Fast and Genius chat"),
+            PlanRow(title: "Professional", price: store.price(Store.planIDs[1]).map { "\($0) / month" } ?? "$\(plan("pro")?.priceMonthlyUsd ?? "22.99") / month",
+                    note: "billed monthly", detail: "\((plan("pro")?.monthlyTokenGrant ?? 12700).formatted()) credits a month · parallel generations"),
+            PlanRow(title: "Power User", price: store.price(Store.planIDs[2]).map { "\($0) / month" } ?? "$\(plan("expert")?.priceMonthlyUsd ?? "58.90") / month",
+                    note: "billed monthly", detail: "\((plan("expert")?.monthlyTokenGrant ?? 34400).formatted()) credits a month · lowest cost per credit"),
+        ]
+    }
+
+    var body: some View {
+        let store = model.store
+        VStack(spacing: 14) {
+            HStack {
+                SheetCancelButton { dismiss() }
+                Spacer()
+                Text("PLANS").font(NX.F.display(18)).foregroundStyle(NX.C.inkSoft)
+                Spacer()
+                Color.clear.frame(width: 80, height: 1)
+            }
+            ScrollView {
+                VStack(spacing: 10) {
+                    VStack(spacing: 4) {
+                        Text("TRY EVERYTHING").font(NX.F.display(24)).foregroundStyle(NX.C.inkSoft)
+                        Text("Every model, one balance").font(NX.F.body(13)).foregroundStyle(NX.C.ink3)
+                    }
+                    .padding(.bottom, 6)
+                    ForEach(rows.indices, id: \.self) { i in
+                        Button { selected = i } label: {
+                            SkewCard(selected: selected == i) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(rows[i].title.uppercased()).font(NX.F.display(15)).foregroundStyle(NX.C.inkSoft)
+                                        Spacer()
+                                        Text(rows[i].price).font(NX.F.body(14, .semibold)).foregroundStyle(NX.C.ink)
+                                    }
+                                    Text(rows[i].note).font(NX.F.body(12)).foregroundStyle(NX.C.ink3)
+                                    Text(rows[i].detail).font(NX.F.body(12)).foregroundStyle(NX.C.ink2)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selected == i ? .isSelected : [])
+                    }
+                    Text("The subscription renews automatically at the price shown each month until cancelled. Cancel at least 24 hours before renewal in Apple ID settings. Prices come from the App Store in your currency.")
+                        .font(NX.F.body(11)).foregroundStyle(NX.C.ink3)
+                    HStack(spacing: 16) {
+                        Button("Restore Purchases") { Task { await store.restore() } }
+                        Link("Terms", destination: URL(string: "https://nxor.ai/legal/terms")!)
+                        Link("Privacy", destination: URL(string: "https://nxor.ai/legal/privacy")!)
+                    }
+                    .font(NX.F.body(12)).underline().foregroundStyle(NX.C.ink2)
+                    .frame(minHeight: 44)
+                }
+                .padding(.horizontal, 6)
+            }
+            SkewButton(title: store.purchasing ? "Subscribing…" : (selected == 0 ? "Start free trial" : "Subscribe"), size: .l, style: .metal, fullWidth: true, enabled: !store.purchasing) {
+                Task {
+                    if await store.buy(Store.planIDs[selected]) {
+                        await model.refreshBalance()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .task { await store.load() }
+        .alert("App Store", isPresented: Binding(get: { store.message != nil }, set: { if !$0 { store.message = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: { Text(store.message ?? "") }
+    }
+}
+
+/// R5: ask for notifications right after the first video starts.
+struct NotifyPromptSheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                SheetCancelButton { model.notifyAsked = true; dismiss() }
+                Spacer()
+            }
+            TilePlaceholder(seed: 0).frame(width: 52, height: 52)
+            Text("GET A PING WHEN IT'S READY?").font(NX.F.display(20)).foregroundStyle(NX.C.inkSoft).multilineTextAlignment(.center)
+            Text("Videos take 1–3 minutes. We'll notify you and show progress on the Lock Screen. Nothing else.")
+                .font(NX.F.body(14)).foregroundStyle(NX.C.ink3).multilineTextAlignment(.center)
+            Spacer(minLength: 0)
+            SkewButton(title: "Notify me", size: .l, style: .metal, fullWidth: true) {
+                Task {
+                    await model.requestNotifications()
+                    dismiss()
+                }
+            }
+            SkewButton(title: "Not now", size: .m, style: .dark, fullWidth: true) {
+                model.notifyAsked = true
+                dismiss()
+            }
+        }
+        .padding(20)
+    }
+}
+
+/// R6: no access to Photos — a way to Settings and an alternative.
+struct PhotosDeniedSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack {
+                SheetCancelButton { dismiss() }
+                Spacer()
+            }
+            Spacer()
+            TilePlaceholder(seed: 0).frame(width: 52, height: 52)
+            Text("NXOR CAN'T SAVE TO YOUR PHOTOS").font(NX.F.display(20)).foregroundStyle(NX.C.inkSoft).multilineTextAlignment(.center)
+            Text("Allow “Add Photos Only” in Settings to save pictures and videos. Picking references doesn't need access.")
+                .font(NX.F.body(14)).foregroundStyle(NX.C.ink3).multilineTextAlignment(.center)
+            SkewButton(title: "Open Settings", size: .l, style: .metal) {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            }
+            Button("Use Share instead") { dismiss() }
+                .font(NX.F.body(14)).underline().foregroundStyle(NX.C.inkSoft).frame(minHeight: 44)
+            Spacer()
+        }
+        .padding(20)
+        .background(BackgroundAura())
     }
 }
 
 struct HelpScreen: View {
-    @Environment(\.openURL) private var openURL
-    @State private var open: Int? = 0
-
     private let faq: [(String, String)] = [
-        ("What are credits and how are they used?",
-         "Credits meter your usage. Each chat reply, image, or video consumes credits based on the model and output — NXOR shows the estimated cost before you run a task and the actual cost after. Unused credits don't roll over between billing periods."),
-        ("Am I charged for failed generations?",
-         "No. Failed generations are never charged — reserved credits are returned to your balance."),
-        ("How does billing work?",
-         "Plans renew monthly or yearly. You can change or cancel your plan any time on nxor.ai; top-up packs add credits on top of your plan."),
-        ("What happens to my images and videos?",
-         "Everything you create is kept in your Library. You can download, move between projects or delete any item."),
+        ("What is a credit?", "Credits pay for pictures, videos and chat. Each model shows its price before you run it; the price is on the send button."),
+        ("Do failed generations cost credits?", "No. If a generation fails or is refused, the credits come back automatically."),
+        ("Where are my files?", "Everything you make is in Studio. Things made in a chat are there too, marked “Aa from chat”."),
+        ("What is a project?", "A project keeps chats, generations, files and instructions together. NXOR reads the instructions and brand kit in every project chat."),
+        ("How do I cancel my plan?", "Open Settings → Apple ID → Subscriptions on your iPhone."),
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Answers on credits, billing, generation and your data.")
-                    .font(NX.F.body(16)).foregroundStyle(NX.C.ink2)
-
-                VStack(spacing: 0) {
-                    ForEach(Array(faq.enumerated()), id: \.offset) { i, item in
-                        Button {
-                            withAnimation(NX.Motion.hover) { open = open == i ? nil : i }
-                        } label: {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(alignment: .top) {
-                                    Text(item.0).font(NX.F.body(16, .medium)).foregroundStyle(NX.C.ink)
-                                        .multilineTextAlignment(.leading)
-                                    Spacer()
-                                    Image(systemName: open == i ? "minus" : "plus").foregroundStyle(NX.C.ink3)
-                                }
-                                if open == i {
-                                    Text(item.1).font(NX.F.body(15)).foregroundStyle(NX.C.ink2)
-                                        .multilineTextAlignment(.leading)
-                                }
-                            }
-                            .padding(16)
-                            .overlay(alignment: .bottom) { Hairline() }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-
-                NXSecondaryButton(title: "Contact support", icon: "envelope") {
-                    if let u = URL(string: "mailto:support@nxor.ai") { openURL(u) }
-                }
-                .frame(maxWidth: .infinity)
+        VStack(spacing: 0) {
+            NavHeader {
+                BackLink(title: "Back")
+            } title: {
+                ScreenTitle(text: "Help", centered: true)
+            } trailing: {
+                Color.clear.frame(width: 60, height: 1)
             }
-            .padding(16)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(faq, id: \.0) { item in
+                        DisclosureGroup {
+                            Text(item.1).font(NX.F.body(14)).foregroundStyle(NX.C.ink2).padding(.top, 6)
+                        } label: {
+                            Text(item.0).font(NX.F.body(15, .semibold)).foregroundStyle(NX.C.ink)
+                        }
+                        .tint(NX.C.ink3)
+                        .padding(14)
+                        .background(NX.C.tint.opacity(0.035))
+                    }
+                    Link("Contact support", destination: URL(string: "mailto:support@nxor.ai")!)
+                        .font(NX.F.body(15)).foregroundStyle(NX.C.accent).frame(minHeight: 44)
+                }
+                .padding(16)
+            }
         }
+        .background(NX.C.bg.ignoresSafeArea())
     }
 }

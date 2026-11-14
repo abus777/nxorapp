@@ -2,478 +2,431 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
-struct StudioScreen: View {
-    @Environment(AppModel.self) private var app
-    @State private var studio = StudioModel()
-    @State private var library = LibraryModel()
-    @State private var showModels = false
-    @State private var viewing: LibraryItem?
-    @State private var refPicker: [PhotosPickerItem] = []
-    @State private var dropActive = false
-    @FocusState private var promptFocused: Bool
+enum MediaFilter: String, CaseIterable, Identifiable {
+    case all, image, video, audio, refs
 
-    private var recent: [LibraryItem] {
-        (library.uploads + library.items).filter { studio.kind == .video ? true : !$0.isVideo }
+    var id: String { rawValue }
+    var title: String { self == .refs ? "Refs" : rawValue.capitalized }
+
+    func matches(_ item: LibraryItem) -> Bool {
+        switch self {
+        case .all: return true
+        case .image: return item.source == .image
+        case .video: return item.source == .video
+        case .audio: return false
+        case .refs: return item.source == .reference
+        }
     }
+}
+
+/// 06 Studio: your work + a thin "✦ Describe what to create…" line that opens the create sheet.
+struct StudioScreen: View {
+    @Environment(AppModel.self) private var model
+    @State private var library = LibraryModel()
+    @State private var filter: MediaFilter = .all
+    @State private var selecting = false
+    @State private var selection: Set<String> = []
+    @State private var importItems: [PhotosPickerItem] = []
+    @State private var dropActive = false
+    @State private var mode: CreateMode = .image
+    @State private var confirmDelete = false
 
     var body: some View {
-        ZStack(alignment: .top) {
-            NX.C.bg.ignoresSafeArea()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    hero
-                    recentStrip
+        VStack(spacing: 0) {
+            NavHeader {
+                SkewIconButton(systemName: "line.3.horizontal", label: "Menu") {
+                    withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 60) }
-            .safeAreaInset(edge: .bottom, spacing: 0) { composer }
-
-            FloatingHeader {
-                ChamferIconButton(systemName: "line.3.horizontal", label: "Menu") {
-                    withAnimation(NX.Motion.pop) { app.sidebarOpen = true }
-                }
-            } center: {
-                PillTabs(items: [
-                    .init(value: GenerationCard.Kind.image, icon: "photo", title: "Image", accessibility: "Image"),
-                    .init(value: GenerationCard.Kind.video, icon: "video", title: "Video", accessibility: "Video"),
-                ], selection: Binding(get: { studio.kind }, set: { studio.switchKind($0, app: app) }))
+            } title: {
+                ScreenTitle(text: "Studio", size: 20)
             } trailing: {
-                ChamferIconButton(systemName: "folder", label: "Library") { app.open(.library) }
+                PhotosPicker(selection: $importItems, maxSelectionCount: 10, matching: .images) {
+                    SkewIconFace(systemName: library.uploading > 0 ? "hourglass" : "arrow.up")
+                }
+                .accessibilityLabel("Import photos")
+                SkewIconButton(systemName: selecting ? "checkmark" : "checkmark.square", label: selecting ? "Done" : "Select") {
+                    withAnimation(NX.Motion.hover) { selecting.toggle(); selection = [] }
+                }
+            }
+
+            if library.loaded && allItems.isEmpty && model.studio.jobs.isEmpty {
+                StudioEmptyView()
+            } else {
+                MediaGrid(
+                    items: visible,
+                    jobs: pendingJobs,
+                    filter: $filter,
+                    counts: counts,
+                    selecting: selecting,
+                    selection: $selection,
+                    loading: !library.loaded,
+                    onDelete: { items in Task { await library.delete(items, app: model) } }
+                )
+                .refreshable { await library.load(app: model, force: true) }
             }
         }
-        .task(id: app.currentProjectID) {
-            studio.ensureSelection(app)
-            await library.load(app: app)
-            let preload = UserDefaults.standard.integer(forKey: "refs")
-            if preload > 0, studio.references.isEmpty {
-                (library.uploads + library.items).filter { !$0.isVideo }.prefix(preload).forEach { studio.addReference($0, app: app) }
-            }
+        .background(NX.C.bg.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if selecting { selectionBar } else { createLine }
         }
-        .onChange(of: refPicker) { _, items in
-            refPicker = []
+        .task {
+            library.scope = nil
+            await library.load(app: model)
+        }
+        .onChange(of: importItems) { _, items in
+            importItems = []
+            filter = .refs
             for item in items {
                 Task {
-                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data),
-                       let uploaded = await library.upload(image, app: app) {
-                        studio.addReference(uploaded, app: app)
+                    if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                        await library.upload(image, app: model)
                     }
                 }
             }
         }
-        .onChange(of: studio.prompt) { _, _ in studio.refreshQuote(app) }
-        .sensoryFeedback(.success, trigger: studio.jobs.filter { $0.status == .completed }.count)
-        .sensoryFeedback(.impact(weight: .medium), trigger: studio.jobs.count)
-        .sheet(isPresented: $showModels) {
-            RunSettingsSheet(studio: studio)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(NX.C.surface)
-        }
-        .fullScreenCover(item: $viewing) { item in
-            AssetViewer(items: recent, current: item)
-        }
-        .alert("Couldn't start", isPresented: Binding(get: { studio.error != nil }, set: { if !$0 { studio.error = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(studio.error ?? "")
-        }
-    }
-
-    // MARK: Hero
-
-    @ViewBuilder
-    private var hero: some View {
-        let job = studio.jobs.first
-        ZStack(alignment: .bottomLeading) {
-            NX.C.surface
-            if let job, job.status == .completed, let url = job.thumbnailUrl ?? job.url {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                }
-            } else if job != nil {
-                if let ref = studio.references.first ?? recent.first {
-                    AsyncImage(url: ref.previewURL) { phase in
-                        if let image = phase.image { image.resizable().scaledToFill().blur(radius: 14).opacity(0.7) } else { Skeleton() }
-                    }
-                } else {
-                    Skeleton()
-                }
-            } else if let latest = recent.first {
-                AsyncImage(url: latest.previewURL) { phase in
-                    if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                }
-                .onTapGesture { viewing = latest }
-            } else {
-                StripedAvatar(size: 400)
-            }
-
-            LinearGradient(colors: [NX.C.bg.opacity(0), NX.C.bg.opacity(0.85)], startPoint: .center, endPoint: .bottom)
-                .allowsHitTesting(false)
-
-            VStack(alignment: .leading, spacing: 10) {
-                if let job {
-                    HStack {
-                        MetaLabel(job.status == .completed ? "Ready" : job.status == .failed ? "Failed · not charged" : "Creating", color: NX.C.ink, size: 11)
-                        Spacer()
-                        if job.status != .completed && job.status != .failed {
-                            ProgressView().controlSize(.small).tint(NX.C.accent)
-                        }
-                    }
-                    if job.status != .completed && job.status != .failed { IndeterminateBar() }
-                    Text("\(job.model) · \(job.credits) cr").font(NX.F.body(13)).foregroundStyle(NX.C.inkSoft)
-                } else if let latest = recent.first {
-                    MetaLabel("Latest", color: NX.C.ink, size: 11)
-                    Text(latest.model).font(NX.F.body(13)).foregroundStyle(NX.C.inkSoft)
-                } else {
-                    MetaLabel("Your results appear here", color: NX.C.ink, size: 11)
-                }
-            }
-            .padding(14)
-        }
-        .frame(height: 248)
-        .clipped()
-        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-    }
-
-    private var recentStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Eyebrow("Recent · hold to drag")
-                Spacer()
-                Button { app.open(.library) } label: {
-                    Text("ALL \(library.items.count + library.uploads.count) ›").font(NX.F.mono(11)).tracking(1.8).foregroundStyle(NX.C.accent)
-                }
-            }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    ForEach(studio.jobs.filter { $0.status == .completed }) { job in
-                        AsyncImage(url: job.thumbnailUrl ?? job.url) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                        }
-                        .frame(width: 64, height: 64).clipped()
-                        .overlay(Rectangle().strokeBorder(NX.C.accent.opacity(0.6), lineWidth: 1))
-                    }
-                    ForEach(recent.prefix(20)) { item in
-                        Color.clear.frame(width: 64, height: 64)
-                            .overlay {
-                                AsyncImage(url: item.previewURL) { phase in
-                                    if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                                }
-                            }
-                            .clipped()
-                            .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
-                            .contentShape(Rectangle())
-                            .onTapGesture { viewing = item }
-                            .draggable(item.dragPayload) { DragPreview(item: item) }
-                            .contextMenu {
-                                if !item.isVideo {
-                                    Button { studio.addReference(item, app: app) } label: { Label("Use as reference", systemImage: "plus.square.on.square") }
-                                }
-                                Button { viewing = item } label: { Label("Open", systemImage: "arrow.up.left.and.arrow.down.right") }
-                            }
-                            .accessibilityLabel(item.prompt)
-                    }
-                }
+        .confirmationDialog("Delete \(selection.count) item\(selection.count == 1 ? "" : "s")?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                let items = allItems.filter { selection.contains($0.id) }
+                selection = []
+                selecting = false
+                Task { await library.delete(items, app: model) }
             }
         }
     }
 
-    // MARK: Composer
-
-    private var canSend: Bool {
-        !studio.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !studio.submitting && studio.variant(app) != nil
+    private var allItems: [LibraryItem] {
+        var seen = Set<String>()
+        return (model.freshItems + library.items + library.uploads).filter { seen.insert($0.id).inserted }
     }
 
-    private var composer: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 10) {
+    /// Jobs still rendering or failed (finished ones show as normal tiles).
+    private var pendingJobs: [GenerationCard] {
+        model.studio.jobs.filter { job in job.status != .completed }
+    }
+
+    private var visible: [LibraryItem] { allItems.filter { filter.matches($0) } }
+
+    private var counts: [MediaFilter: Int] {
+        Dictionary(uniqueKeysWithValues: MediaFilter.allCases.map { f in (f, allItems.filter { f.matches($0) }.count) })
+    }
+
+    /// Thin creation line; drop a tile here to use it as a reference (07b).
+    private var createLine: some View {
+        HStack(spacing: 10) {
+            Button {
+                model.studioDraft = StudioDraft(prompt: "", mode: mode)
+                model.showCreateSheet = true
+            } label: {
                 HStack(spacing: 8) {
-                    ForEach(studio.references) { ref in
-                        AsyncImage(url: ref.previewURL) { phase in
-                            if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                        }
-                        .frame(width: 44, height: 44).clipped()
-                        .overlay(Rectangle().strokeBorder(NX.C.line2, lineWidth: 1))
-                        .overlay(alignment: .topTrailing) {
-                            Button { withAnimation(NX.Motion.pop) { studio.removeReference(ref, app: app) } } label: {
-                                Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(NX.C.ink).frame(width: 16, height: 16).background(Color.black.opacity(0.75))
-                            }
-                            .accessibilityLabel("Remove reference")
-                        }
-                    }
-                    PhotosPicker(selection: $refPicker, maxSelectionCount: 4, matching: .images) {
-                        Group {
-                            if library.uploading > 0 { ProgressView().controlSize(.small) } else { Image(systemName: "plus").font(.system(size: 14)) }
-                        }
-                        .foregroundStyle(dropActive ? NX.C.accent : NX.C.ink2)
-                        .frame(width: 44, height: 44)
-                        .overlay(Rectangle().strokeBorder(dropActive ? NX.C.accent : NX.C.line2, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
-                    }
-                    .accessibilityLabel("Add reference photo")
+                    Image(systemName: "sparkle").font(.system(size: 13)).foregroundStyle(NX.C.accent)
+                    Text(dropActive ? "Drop to add as reference" : "Describe what to create…")
+                        .font(NX.F.body(15))
+                        .foregroundStyle(dropActive ? NX.C.accent : NX.C.muted)
                     Spacer(minLength: 0)
-                    MetaLabel("\(studio.references.count) / \(studio.maxReferences) refs", color: NX.C.ink2, size: 10)
                 }
-
-                TextField("", text: $studio.prompt, prompt: Text(studio.kind == .image ? "Describe the picture" : "Describe the video").foregroundColor(NX.C.ink3), axis: .vertical)
-                    .font(NX.F.body(16))
-                    .foregroundStyle(NX.C.ink)
-                    .lineLimit(2...5)
-                    .focused($promptFocused)
-
-                HStack {
-                    Button { Task { await studio.enhance(app: app) } } label: {
-                        HStack(spacing: 6) {
-                            if studio.enhancing { ProgressView().controlSize(.mini) } else { Image(systemName: "bolt").font(.system(size: 12)) }
-                            Text("AI PROMPT").font(NX.F.mono(11)).tracking(1.8)
-                        }
-                        .foregroundStyle(studio.prompt.isEmpty ? NX.C.ink3 : NX.C.accent)
-                        .padding(.horizontal, 10)
-                        .frame(height: 30)
-                        .overlay(Rectangle().strokeBorder(studio.prompt.isEmpty ? NX.C.line : NX.C.accent.opacity(0.5), lineWidth: 1))
-                    }
-                    .buttonStyle(PressStyle())
-                    .disabled(studio.prompt.isEmpty || studio.enhancing)
-                    Spacer()
-                    ComposerIcon(systemName: "mic", label: "Dictate") { promptFocused = true }
-                }
+                .frame(minHeight: 40)
+                .contentShape(Rectangle())
             }
-            .padding(12)
-            .background(dropActive ? NX.C.accent.opacity(0.08) : NX.C.surface)
-            .overlay(Rectangle().strokeBorder(dropActive || promptFocused ? AnyShapeStyle(NX.G.frame) : AnyShapeStyle(NX.C.line2), lineWidth: dropActive ? 2 : 1))
-            .shadow(color: NX.C.accent.opacity(promptFocused ? 0.18 : 0.08), radius: 18)
-            .dropDestination(for: String.self) { payloads, _ in
-                let items = payloads.compactMap { app.assetIndex[$0] }.filter { !$0.isVideo }
-                guard !items.isEmpty else { return false }
-                withAnimation(NX.Motion.pop) { items.forEach { studio.addReference($0, app: app) } }
-                return true
-            } isTargeted: { inside in
-                withAnimation(NX.Motion.hover) { dropActive = inside }
-            }
+            .buttonStyle(.plain)
+            ModeKey(mode: $mode)
+        }
+        .auraComposer(active: dropActive, highlighted: dropActive)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .dropDestination(for: String.self) { payloads, _ in
+            let items = payloads.compactMap { model.assetIndex[$0] }.filter { !$0.isVideo }
+            guard !items.isEmpty else { return false }
+            model.studio.setMode(mode, app: model)
+            items.forEach { model.studio.addReference($0, app: model) }
+            model.studioDraft = StudioDraft(prompt: model.studio.prompt, mode: mode, referenceIDs: model.studio.references.map(\.id))
+            model.showCreateSheet = true
+            return true
+        } isTargeted: { inside in
+            withAnimation(NX.Motion.hover) { dropActive = inside }
+        }
+    }
 
-            HStack(spacing: 6) {
-                Menu {
-                    ForEach(app.projects) { project in
-                        Button { app.currentProjectID = project.id } label: {
-                            if project.id == app.currentProjectID { Label(project.name, systemImage: "checkmark") } else { Text(project.name) }
+    private var selectionBar: some View {
+        HStack(spacing: 8) {
+            Text("\(selection.count) SELECTED").font(NX.F.mono(10)).tracking(1.6).foregroundStyle(NX.C.ink2)
+            Spacer()
+            Menu {
+                ForEach(model.userProjects) { project in
+                    Button(project.name) {
+                        let items = allItems.filter { selection.contains($0.id) }
+                        selection = []
+                        selecting = false
+                        Task {
+                            await library.move(items, to: project, app: model)
+                            model.showToast("Moved to \(project.name)")
                         }
                     }
-                } label: {
-                    chip(icon: "folder", text: app.currentProject?.name ?? "Folder")
                 }
-                Button { showModels = true } label: {
-                    chip(icon: nil, text: studio.familyLabel.isEmpty ? "Model" : studio.familyLabel, chevron: true)
-                }
-                .buttonStyle(PressStyle())
-                if let ratios = studio.variant(app)?.body.aspectRatio, ratios.count > 1 {
-                    Menu {
-                        ForEach(ratios, id: \.self) { r in
-                            Button(r) { studio.aspect = r; studio.refreshQuote(app) }
-                        }
-                    } label: {
-                        chip(icon: nil, text: studio.aspect ?? ratios[0])
-                    }
-                }
-                Spacer(minLength: 0)
+            } label: {
+                SkewIconFace(systemName: "folder")
             }
-
-            VStack(spacing: 6) {
-                Button {
-                    promptFocused = false
-                    Task { await studio.generate(app: app) }
-                } label: {
-                    HStack(spacing: 10) {
-                        if studio.submitting { ProgressView().tint(NX.C.btnInk) }
-                        Text("GENERATE").font(NX.F.display(17))
-                        if let q = studio.quote {
-                            Text("\(Int(q)) CR").font(NX.F.mono(12, .semibold)).tracking(1.4).opacity(0.75)
-                        } else if studio.quoting {
-                            ProgressView().controlSize(.mini).tint(NX.C.btnInk)
-                        }
-                    }
-                    .foregroundStyle(NX.C.btnInk)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(canSend ? AnyShapeStyle(NX.G.silver) : AnyShapeStyle(NX.G.sendIdle), in: CutCorner(cut: 14))
-                }
-                .buttonStyle(PressStyle())
-                .disabled(!canSend)
-
-                Text("BALANCE \(Int(app.account.available).formatted()) CR · FAILED RUNS ARE FREE")
-                    .font(NX.F.mono(10)).tracking(1.4).foregroundStyle(NX.C.ink2)
-                    .frame(maxWidth: .infinity)
-            }
+            .disabled(selection.isEmpty)
+            .accessibilityLabel("Add to project")
+            SkewIconButton(systemName: "trash", label: "Delete") { confirmDelete = true }
+                .disabled(selection.isEmpty)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
-        .background(NX.C.bg.ignoresSafeArea(edges: .bottom))
-    }
-
-    private func chip(icon: String?, text: String, chevron: Bool = false) -> some View {
-        HStack(spacing: 6) {
-            if let icon { Image(systemName: icon).font(.system(size: 12)) }
-            Text(text.uppercased()).font(NX.F.mono(11)).tracking(1.2).lineLimit(1)
-            if chevron { Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(NX.C.ink2) }
-        }
-        .foregroundStyle(NX.C.ink)
-        .padding(.horizontal, 10)
-        .frame(height: 38)
-        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+        .frame(height: 60)
+        .background(GlassBackground().ignoresSafeArea(edges: .bottom))
     }
 }
 
-struct IndeterminateBar: View {
-    @State private var phase: CGFloat = -0.4
+/// Media grid with the month header and "· All ▾" filter in it (no separate filter row).
+struct MediaGrid: View {
+    @Environment(AppModel.self) private var model
+    let items: [LibraryItem]
+    var jobs: [GenerationCard] = []
+    @Binding var filter: MediaFilter
+    var counts: [MediaFilter: Int]
+    var selecting = false
+    @Binding var selection: Set<String>
+    var loading = false
+    var showFilter = true
+    var columns = 2
+    var onDelete: ([LibraryItem]) -> Void
+
+    private var sections: [(String, [LibraryItem])] {
+        let f = DateFormatter()
+        f.dateFormat = "LLLL yyyy"
+        var order: [String] = []
+        var groups: [String: [LibraryItem]] = [:]
+        for item in items {
+            let key = f.string(from: item.createdAt).uppercased()
+            if groups[key] == nil { order.append(key) }
+            groups[key, default: []].append(item)
+        }
+        return order.map { ($0, groups[$0] ?? []) }
+    }
+
+    private var grid: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 6), count: columns) }
 
     var body: some View {
-        GeometryReader { geo in
-            Rectangle().fill(Color.white.opacity(0.14))
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(NX.G.credits)
-                        .frame(width: geo.size.width * 0.4)
-                        .offset(x: phase * geo.size.width)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 10) {
+                if loading {
+                    LazyVGrid(columns: grid, spacing: 6) {
+                        ForEach(0..<6, id: \.self) { _ in Skeleton().aspectRatio(1, contentMode: .fit) }
+                    }
                 }
-                .clipped()
+                if !jobs.isEmpty {
+                    LazyVGrid(columns: grid, spacing: 6) {
+                        ForEach(jobs) { job in JobTile(job: job) }
+                    }
+                }
+                if sections.isEmpty && !loading {
+                    header(title: "Nothing here", count: 0)
+                }
+                ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+                    header(title: section.0, count: index == 0 ? items.count : section.1.count, withFilter: index == 0)
+                    LazyVGrid(columns: grid, spacing: 6) {
+                        ForEach(section.1) { item in
+                            MediaTile(item: item, selecting: selecting, selected: selection.contains(item.id)) {
+                                if selecting {
+                                    if selection.contains(item.id) { selection.remove(item.id) } else { selection.insert(item.id) }
+                                } else {
+                                    model.push(.result(item.id))
+                                }
+                            } onDelete: {
+                                onDelete([item])
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 12)
         }
-        .frame(height: 3)
-        .onAppear {
-            withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { phase = 1 }
+    }
+
+    private func header(title: String, count: Int, withFilter: Bool = true) -> some View {
+        HStack {
+            SectionLabel("\(title) · \(count)")
+            Spacer()
+            if showFilter && withFilter {
+                Menu {
+                    ForEach(MediaFilter.allCases) { f in
+                        Button {
+                            filter = f
+                        } label: {
+                            if f == filter { Label("\(f.title) · \(counts[f] ?? 0)", systemImage: "checkmark") } else { Text("\(f.title) · \(counts[f] ?? 0)") }
+                        }
+                    }
+                } label: {
+                    SkewTagFace(title: filter.title, trailingChevron: true)
+                }
+                .accessibilityLabel("Filter: \(filter.title)")
+            }
         }
+        .padding(.top, 6)
     }
 }
 
-struct JobTile: View {
-    let job: GenerationCard
+struct MediaTile: View {
+    @Environment(AppModel.self) private var model
+    let item: LibraryItem
+    var selecting = false
+    var selected = false
+    let onTap: () -> Void
+    var onDelete: () -> Void = {}
 
     var body: some View {
         Color.clear
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                switch job.status {
-                case .completed:
-                    AsyncImage(url: job.thumbnailUrl ?? job.url) { phase in
-                        if let image = phase.image { image.resizable().scaledToFill() } else { Skeleton() }
-                    }
-                case .failed:
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle").foregroundStyle(NX.C.danger)
-                        MetaLabel("Failed · not charged", size: 9)
-                    }
-                default:
-                    ZStack {
-                        Skeleton()
-                        VStack(spacing: 10) {
-                            ProgressView().tint(NX.C.accent)
-                            MetaLabel(job.kind == .video ? "Creating video" : "Creating image", color: NX.C.ink2, size: 9)
-                        }
-                    }
+                AsyncImage(url: item.previewURL) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() } else { TilePlaceholder(seed: item.id.count) }
                 }
             }
             .clipped()
             .overlay(alignment: .bottomLeading) {
-                MetaLabel("\(job.model) · \(job.credits) cr", color: NX.C.ink, size: 8)
-                    .padding(.horizontal, 6).padding(.vertical, 4)
-                    .background(Color.black.opacity(0.6))
-                    .padding(6)
-            }
-            .overlay(Rectangle().strokeBorder(job.status == .completed ? AnyShapeStyle(NX.C.line) : AnyShapeStyle(NX.G.frame), lineWidth: 1))
-    }
-}
-
-struct RunSettingsSheet: View {
-    @Environment(AppModel.self) private var app
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var studio: StudioModel
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                DisplayTitle(studio.kind == .image ? "Image model" : "Video model", size: 22)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.system(size: 16)).foregroundStyle(NX.C.inkSoft).frame(width: 44, height: 44)
+                HStack(spacing: 4) {
+                    if item.isVideo { TileBadge(text: duration, icon: "play.fill") }
+                    if model.isFromChat(item) { TileBadge(text: "Aa from chat") }
+                    if item.source == .reference { TileBadge(text: "Ref") }
                 }
-                .accessibilityLabel("Close")
+                .padding(6)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(studio.families(app)) { family in
-                        let on = family.family == studio.familyID
-                        Button {
-                            studio.select(family: family, app: app)
-                        } label: {
-                            HStack(alignment: .top, spacing: 12) {
-                                Rectangle().fill(on ? NX.C.accent : .clear).frame(width: 3)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(family.label).font(NX.F.body(16, .semibold)).foregroundStyle(NX.C.ink)
-                                    MetaLabel(family.provider, color: NX.C.ink3, size: 10)
-                                    if let d = family.description {
-                                        Text(d).font(NX.F.body(13)).foregroundStyle(NX.C.ink2).multilineTextAlignment(.leading)
-                                    }
-                                }
-                                Spacer(minLength: 0)
-                                if on { Image(systemName: "checkmark").foregroundStyle(NX.C.accent) }
-                            }
-                            .padding(.vertical, 14)
-                            .padding(.trailing, 16)
-                            .background(on ? AnyShapeStyle(NX.G.selected) : AnyShapeStyle(Color.clear))
-                            .overlay(alignment: .bottom) { Rectangle().fill(NX.C.lineSoft).frame(height: 1) }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
+            .overlay(alignment: .topTrailing) {
+                if selecting {
+                    Image(systemName: selected ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 20))
+                        .foregroundStyle(selected ? NX.C.accent : .white)
+                        .padding(8)
                 }
-                .overlay(alignment: .top) { Rectangle().fill(NX.C.lineSoft).frame(height: 1) }
-                .padding(.top, 10)
             }
-
-            VStack(alignment: .leading, spacing: 12) {
-                if let family = studio.family(app) {
-                    ForEach(family.dimensions.filter { $0.key != "operation" }, id: \.key) { dimension in
-                        let options = studio.options(for: dimension, app: app)
-                        if options.count > 1 {
-                            FlowChips(items: options.map { ($0.value, $0.label) }, selected: studio.dims[dimension.key]) { value in
-                                studio.pick(key: dimension.key, value: value, app: app)
+            .overlay(Rectangle().strokeBorder(selected ? NX.C.accent : .clear, lineWidth: 2))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+            .draggable(item.dragPayload) { DragPreview(item: item) }
+            .contextMenu {
+                if !item.isVideo {
+                    Button { useAsReference() } label: { Label("Use as reference", systemImage: "plus.square.on.square") }
+                    Button { animate() } label: { Label("Animate → video", systemImage: "play.rectangle") }
+                }
+                Button { variations() } label: { Label("Variations", systemImage: "square.on.square") }
+                Button { Task { await model.saveToPhotos(url: item.url ?? item.previewURL, isVideo: item.isVideo) } } label: { Label("Save to Photos", systemImage: "square.and.arrow.down") }
+                if let url = item.url ?? item.previewURL {
+                    ShareLink(item: url) { Label("Share…", systemImage: "square.and.arrow.up") }
+                }
+                Menu {
+                    ForEach(model.userProjects) { project in
+                        Button(project.name) {
+                            Task {
+                                if model.auth == .live { _ = try? await NXORService.libraryMove([item.ref], to: project.id) }
+                                model.showToast("Added to \(project.name)")
                             }
                         }
                     }
-                    if let ratios = studio.variant(app)?.body.aspectRatio, ratios.count > 1 {
-                        FlowChips(items: ratios.map { ($0, $0) }, selected: studio.aspect) { value in
-                            studio.aspect = value
-                            studio.refreshQuote(app)
-                        }
-                    }
+                } label: { Label("Add to project…", systemImage: "folder.badge.plus") }
+                Button(role: .destructive, action: onDelete) { Label("Delete", systemImage: "trash") }
+            } preview: {
+                AsyncImage(url: item.previewURL) { phase in
+                    if let image = phase.image { image.resizable().scaledToFit() } else { TilePlaceholder() }
                 }
-                NXPrimaryButton(title: "Use \(studio.familyLabel.isEmpty ? "model" : studio.familyLabel)") { dismiss() }
+                .frame(width: 300, height: 300)
             }
-            .padding(16)
-            .background(NX.C.surface)
-            .overlay(alignment: .top) { Rectangle().fill(NX.C.line).frame(height: 1) }
-        }
-        .background(NX.C.surface)
+            .accessibilityLabel(item.prompt.isEmpty ? (item.isVideo ? "Video" : "Picture") : item.prompt)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var duration: String {
+        let s = Int(item.duration ?? 5)
+        return String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    private func useAsReference() {
+        model.studio.addReference(item, app: model)
+        model.studioDraft = StudioDraft(prompt: model.studio.prompt, mode: model.studio.mode, projectID: model.studio.projectID, referenceIDs: model.studio.references.map(\.id))
+        model.showCreateSheet = true
+    }
+
+    private func animate() {
+        model.studioDraft = StudioDraft(prompt: "", mode: .video, referenceIDs: [item.id])
+        model.showCreateSheet = true
+    }
+
+    private func variations() {
+        model.studioDraft = StudioDraft(prompt: item.prompt == "Upload" ? "" : item.prompt, mode: item.isVideo ? .video : .image)
+        model.showCreateSheet = true
     }
 }
 
-struct FlowChips: View {
-    let items: [(String, String)]
-    let selected: String?
-    let onPick: (String) -> Void
+/// Rendering / failed job tile (12e).
+struct JobTile: View {
+    @Environment(AppModel.self) private var model
+    let job: GenerationCard
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    NXChip(title: item.1, selected: selected == item.0) { onPick(item.0) }
+        Button {
+            if job.status == .failed, let id = job.generationId { model.push(.result("job:\(id)")) }
+            if job.status == .completed, let id = job.generationId { model.push(.result(id)) }
+        } label: {
+            ZStack {
+                if job.status == .completed {
+                    AsyncImage(url: job.thumbnailUrl ?? job.url) { phase in
+                        if let image = phase.image { image.resizable().scaledToFill() } else { TilePlaceholder() }
+                    }
+                } else {
+                    TilePlaceholder(seed: 1)
+                    VStack(spacing: 8) {
+                        Text(job.status == .failed ? "FAILED · NOT CHARGED" : "RENDERING")
+                            .font(NX.F.mono(10)).tracking(1.8)
+                            .foregroundStyle(job.status == .failed ? NX.C.danger : NX.C.inkSoft)
+                        if job.status != .failed { IndeterminateBar().frame(width: 90) }
+                    }
                 }
             }
+            .aspectRatio(1, contentMode: .fit)
+            .clipped()
+            .overlay(alignment: .bottomLeading) { TileBadge(text: "\(job.model) · \(job.credits) cr").padding(6) }
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(job.status == .failed ? "Failed: \(job.prompt)" : "Rendering: \(job.prompt)")
+    }
+}
+
+struct DragPreview: View {
+    let item: LibraryItem
+
+    var body: some View {
+        AsyncImage(url: item.previewURL) { phase in
+            if let image = phase.image { image.resizable().scaledToFill() } else { TilePlaceholder() }
+        }
+        .frame(width: 96, height: 96)
+        .clipped()
+        .rotationEffect(.degrees(-6))
+        .overlay(Rectangle().strokeBorder(NX.C.accent, lineWidth: 1.5))
+    }
+}
+
+/// R11: empty Studio.
+struct StudioEmptyView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            NXMark().fill(NX.G.logo).frame(width: 56, height: 56).padding(.bottom, 8)
+            Text("NOTHING HERE YET").font(NX.F.display(24)).foregroundStyle(NX.C.inkSoft)
+            Text("Your pictures, videos and voice-overs will live here.")
+                .font(NX.F.body(15)).foregroundStyle(NX.C.ink3).multilineTextAlignment(.center)
+            SkewButton(title: "Start from a preset", size: .l, style: .metal) { model.push(.presets) }
+                .padding(.top, 8)
+            Button("or describe your own") {
+                model.studioDraft = StudioDraft(prompt: "", mode: .image)
+                model.showCreateSheet = true
+            }
+            .font(NX.F.body(14)).underline().foregroundStyle(NX.C.inkSoft)
+            .frame(minHeight: 44)
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity)
+        .background(BackgroundAura())
     }
 }

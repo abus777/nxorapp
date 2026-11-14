@@ -12,7 +12,6 @@ struct NXORApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .preferredColorScheme(.dark)
                 .tint(NX.C.accent)
         }
     }

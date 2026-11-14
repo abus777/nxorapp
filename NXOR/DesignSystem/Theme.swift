@@ -1,6 +1,20 @@
 import SwiftUI
+import UIKit
 
 extension Color {
+    /// Colour pair for light and dark appearance.
+    init(light: UInt32, dark: UInt32, darkOpacity: Double = 1) {
+        self.init(uiColor: UIColor { trait in
+            let hex = trait.userInterfaceStyle == .light ? light : dark
+            return UIColor(
+                red: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: trait.userInterfaceStyle == .light ? 1 : darkOpacity
+            )
+        })
+    }
+
     init(hex: UInt32, opacity: Double = 1) {
         self.init(
             .sRGB,
@@ -14,25 +28,27 @@ extension Color {
 
 enum NX {
     enum C {
-        static let bg = Color(hex: 0x08090A)
-        static let surface = Color(hex: 0x0B0D10)
-        static let raised = Color(hex: 0x12151A)
-        static let card = Color(hex: 0x0D0F12)
-        static let popover = Color(hex: 0x12161B)
-        static let lineSoft = Color(hex: 0x191B1F)
-        static let track = Color(hex: 0x2A2F36)
-        static let line = Color(hex: 0x23272D)
-        static let line2 = Color(hex: 0x2E3238)
-        static let ink = Color.white
-        static let inkSoft = Color(hex: 0xEEF1F5)
-        static let ink2 = Color(hex: 0xAEB7C2)
-        static let ink3 = Color(hex: 0x8A93A0)
-        static let muted = Color(hex: 0x6E7681)
-        static let accent = Color(hex: 0x12E0FF)
+        static let bg = Color(light: 0xF2F4F7, dark: 0x08090A)
+        static let surface = Color(light: 0xFFFFFF, dark: 0x0B0D10)
+        static let raised = Color(light: 0xE8ECF1, dark: 0x12151A)
+        static let card = Color(light: 0xF7F8FA, dark: 0x0D0F12)
+        static let popover = Color(light: 0xFFFFFF, dark: 0x12161B)
+        static let lineSoft = Color(light: 0xE3E7EC, dark: 0x191B1F)
+        static let track = Color(light: 0xD5DAE1, dark: 0x2A2F36)
+        static let line = Color(light: 0xD9DEE5, dark: 0x23272D)
+        static let line2 = Color(light: 0xC9D0D9, dark: 0x2E3238)
+        static let ink = Color(light: 0x0B0D10, dark: 0xFFFFFF)
+        static let inkSoft = Color(light: 0x14171B, dark: 0xEEF1F5)
+        static let ink2 = Color(light: 0x444C56, dark: 0xAEB7C2)
+        static let ink3 = Color(light: 0x5A636E, dark: 0x8A93A0)
+        static let muted = Color(light: 0x66707B, dark: 0x6E7681)
+        /// Base for soft fills: white on dark, black on light.
+        static let tint = Color(light: 0x000000, dark: 0xFFFFFF)
+        static let accent = Color(light: 0x0090B0, dark: 0x12E0FF)
         static let onAccent = Color(hex: 0x08090A)
         static let btnInk = Color(hex: 0x0B0D10)
         static let warn = Color(hex: 0xFFD166)
-        static let danger = Color(hex: 0xFF6B6B)
+        static let danger = Color(light: 0xD62F2F, dark: 0xFF6B6B)
         static let blue = Color(hex: 0x2E5BFF)
         static let violet = Color(hex: 0x7B5BFF)
         static let pink = Color(hex: 0xFF3DD1)
