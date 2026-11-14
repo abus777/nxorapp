@@ -35,14 +35,12 @@ struct PresetDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                DisplayTitle(preset.name, size: 22).lineLimit(1).minimumScaleFactor(0.6)
+            HStack(spacing: 10) {
+                SheetCancelButton { dismiss() }
+                Text(preset.name.uppercased()).font(NX.F.display(18)).foregroundStyle(NX.C.inkSoft).lineLimit(1).minimumScaleFactor(0.6)
                 Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.system(size: 18)).foregroundStyle(NX.C.ink2)
-                }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
             .frame(height: 56)
 
             ScrollView {
@@ -61,8 +59,7 @@ struct PresetDetailView: View {
                                 .foregroundStyle(NX.C.ink)
                                 .lineLimit(2...4)
                                 .padding(14)
-                                .background(NX.C.surface)
-                                .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                                .background(NX.C.tint.opacity(0.05))
                         }
                     }
 
@@ -87,7 +84,7 @@ struct PresetDetailView: View {
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .overlay(Rectangle().strokeBorder(NX.C.line2, style: StrokeStyle(lineWidth: 1, dash: photo == nil ? [5, 4] : [])))
+                            .overlay(Rectangle().strokeBorder(NX.C.tint.opacity(photo == nil ? 0.12 : 0), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
                         }
                         if let hint = photoInput?.hint {
                             Text(hint).font(NX.F.body(13)).foregroundStyle(NX.C.muted)
@@ -112,7 +109,7 @@ struct PresetDetailView: View {
                             MetaLabel("Aspect \(aspect)", color: NX.C.ink, size: 11)
                         }
                         .padding(14)
-                        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
+                        .background(NX.C.tint.opacity(0.035))
                     }
 
                     if let result {
@@ -122,15 +119,12 @@ struct PresetDetailView: View {
                 .padding(18)
             }
 
-            NXPrimaryButton(title: running ? "Starting…" : "Use preset · \(credits) cr") {
+            SkewButton(title: running ? "Starting…" : "Use preset · \(credits) cr", size: .l, style: .metal, fullWidth: true, enabled: canRun) {
                 Task { await run() }
             }
-            .disabled(!canRun)
-            .opacity(canRun ? 1 : 0.5)
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
         }
-        .background(NX.C.bg.ignoresSafeArea())
         .task { await loadDetail() }
         .onChange(of: pickerItem) { _, item in
             Task {
@@ -165,7 +159,6 @@ struct PresetDetailView: View {
                 .background(Color.black.opacity(0.65))
                 .padding(10)
         }
-        .overlay(Rectangle().strokeBorder(NX.C.line, lineWidth: 1))
     }
 
     private func loadDetail() async {
@@ -222,6 +215,7 @@ struct PresetDetailView: View {
                 result = card
                 if !g.isRunning { break }
             }
+            if card.status == .completed { app.register(job: card, projectID: nil) }
             await app.refreshBalance()
         } catch {
             result = nil

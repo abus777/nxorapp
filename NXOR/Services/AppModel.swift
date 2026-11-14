@@ -774,6 +774,9 @@ final class AppModel {
 
     private func trackGeneration(_ card: GenerationCard, in chatID: String) {
         guard let generationId = card.generationId else { return }
+        if card.status == .processing || card.status == .pending {
+            RenderActivities.start(id: generationId, title: chats.first { $0.id == chatID }?.title ?? "NXOR", model: card.model, kind: card.kind)
+        }
         Task { @MainActor in
             for attempt in 0..<200 {
                 let generation = try? await (card.kind == .video ? NXORService.video(generationId) : NXORService.image(generationId))
@@ -787,7 +790,9 @@ final class AppModel {
                         }
                         c.errorMessage = generation.errorMessage
                     }
+                    if generation.isRunning { RenderActivities.tick(id: generationId) }
                     if !generation.isRunning {
+                        RenderActivities.finish(id: generationId, success: generation.status == "completed")
                         if generation.status == "completed", let title = chats.first(where: { $0.id == chatID })?.title {
                             notifyReady(kind: card.kind, title: title)
                         }

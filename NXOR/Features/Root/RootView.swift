@@ -25,6 +25,7 @@ struct RootView: View {
 /// One NavigationStack per root (Chat / Studio / Projects), the ≡ menu over it, and app-wide sheets.
 struct MainShell: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var dragX: CGFloat = 0
 
     var body: some View {
@@ -92,6 +93,14 @@ struct MainShell: View {
             withAnimation(NX.Motion.pop) { model.sidebarOpen = true }
         }
         .task { await openLaunchSheet() }
+        .task { consumePendingLaunch() }
+        .onOpenURL { url in
+            PendingLaunch.handle(url)
+            consumePendingLaunch()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { consumePendingLaunch() }
+        }
         .sheet(isPresented: $model.showCreateSheet) {
             CreateSheet()
                 .presentationDetents([.medium, .large])
@@ -162,6 +171,20 @@ struct MainShell: View {
         case .account: AccountScreen()
         case .projects: ProjectsScreen(pushed: true)
         case .help: HelpScreen()
+        }
+    }
+
+    /// Siri, widget and nxor:// hand-off.
+    private func consumePendingLaunch() {
+        guard let pending = PendingLaunch.take() else { return }
+        switch pending.mode {
+        case "image", "video", "audio":
+            model.openInStudio(StudioDraft(prompt: pending.prompt, mode: CreateMode(rawValue: pending.mode) ?? .image))
+        case "studio":
+            model.open(.studio)
+        default:
+            model.newChat()
+            if !pending.prompt.isEmpty { model.send(pending.prompt) }
         }
     }
 

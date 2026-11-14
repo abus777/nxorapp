@@ -68,9 +68,9 @@ struct SkewFill: View {
             shape.fill(NX.G.silver)
                 .shadow(color: NX.C.blue.opacity(0.28), radius: 14, y: 8)
                 .shadow(color: NX.C.violet.opacity(0.18), radius: 11)
-                .overlay(shape.strokeBorder(NX.C.tint.opacity(0.35), lineWidth: 1))
+                .overlay(shape.strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
         case .dark:
-            shape.fill(LinearGradient(colors: [Color(hex: 0x181C22), Color(hex: 0x0F1216)], startPoint: .top, endPoint: .bottom))
+            shape.fill(LinearGradient(colors: [Color(light: 0xFFFFFF, dark: 0x181C22), Color(light: 0xE9EDF2, dark: 0x0F1216)], startPoint: .top, endPoint: .bottom))
                 .overlay(shape.strokeBorder(NX.C.tint.opacity(0.08), lineWidth: 1))
                 .shadow(color: NX.C.blue.opacity(0.14), radius: 9, y: 6)
         case .glass:

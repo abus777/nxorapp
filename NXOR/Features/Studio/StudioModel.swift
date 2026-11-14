@@ -264,6 +264,7 @@ final class StudioModel {
                 if let chatTag, let id = card.generationId { app.chatGenerationIDs[id] = chatTag }
                 jobs.insert(card, at: 0)
                 let cardID = card.generationId
+                if let cardID { RenderActivities.start(id: cardID, title: String(text.prefix(40)), model: familyLabel, kind: kind) }
                 let jobKind = kind
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(4))
@@ -274,6 +275,7 @@ final class StudioModel {
                         jobs[i].url = sample?.previewVideoUrl ?? sample?.previewImageUrl
                         app.register(job: jobs[i], projectID: projectID)
                     }
+                    if let cardID { RenderActivities.finish(id: cardID, success: true) }
                 }
             }
             app.account.available -= Double(price ?? 0)
@@ -295,6 +297,7 @@ final class StudioModel {
                 card.generationId = id
                 if let chatTag { app.chatGenerationIDs[id] = chatTag }
                 jobs.insert(card, at: 0)
+                RenderActivities.start(id: id, title: String(text.prefix(40)), model: familyLabel, kind: card.kind)
                 track(id: id, kind: card.kind, app: app)
                 started = true
             } catch {
@@ -324,7 +327,9 @@ final class StudioModel {
                     jobs[i].thumbnailUrl = g.previewURL
                     jobs[i].errorMessage = g.errorMessage
                 }
+                if g.isRunning { RenderActivities.tick(id: id) }
                 if !g.isRunning {
+                    RenderActivities.finish(id: id, success: g.status == "completed")
                     if let job = jobs.first(where: { $0.generationId == id }), job.status == .completed {
                         app.register(job: job, projectID: projectID)
                         app.notifyReady(kind: kind, title: String(job.prompt.prefix(40)))

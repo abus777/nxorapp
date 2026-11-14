@@ -1,0 +1,5 @@
+// Shared build settings. To use your own bundle ID or team, create Config/Local.xcconfig (ignored by git):
+//   NXOR_BUNDLE_ID = com.yourname.nxorapp
+//   DEVELOPMENT_TEAM = ABCDE12345
+NXOR_BUNDLE_ID = com.abus777.nxorapp
+#include? "Local.xcconfig"
