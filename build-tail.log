@@ -1,0 +1,60 @@
+    cd /Users/runner/work/nxorapp/nxorapp
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo -create /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/arm64/Binary/NXOR /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/x86_64/Binary/NXOR -output /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/NXOR
+
+Copy /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PlugIns/NXORWidgets.appex /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXORWidgets.appex (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks -remove-static-executable /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXORWidgets.appex /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PlugIns
+
+ProcessInfoPlistFile /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Info.plist /Users/runner/work/nxorapp/nxorapp/Config/NXOR-Info.plist (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    builtin-infoPlistUtility /Users/runner/work/nxorapp/nxorapp/Config/NXOR-Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/assetcatalog_generated_info.plist -scanforprivacyfile /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PlugIns/NXORWidgets.appex -o /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Info.plist
+
+ExtractAppIntentsMetadata (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name NXOR --sdk-root /Applications/Xcode_26.3.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C529 --platform-family iOS --deployment-target 17.0 --bundle-identifier com.abus777.nxorapp --output /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app --target-triple arm64-apple-ios17.0-simulator --target-triple x86_64-apple-ios17.0-simulator --binary-file /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/NXOR --dependency-file /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/arm64/NXOR_dependency_info.dat --dependency-file /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/x86_64/NXOR_dependency_info.dat --stringsdata-file /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --stringsdata-file /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/x86_64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/arm64/NXOR.SwiftFileList --source-file-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/x86_64/NXOR.SwiftFileList --metadata-file-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/NXOR.DependencyMetadataFileList --static-metadata-file-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/NXOR.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/arm64/NXOR.SwiftConstValuesFileList --swift-const-vals-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/Objects-normal/x86_64/NXOR.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-11-14 23:59:08.061 appintentsmetadataprocessor[7234:23346] Starting appintentsmetadataprocessor export
+2026-11-14 23:59:08.504 appintentsmetadataprocessor[7234:23346] Writing Metadata.appintents
+2026-11-14 23:59:08.504 appintentsmetadataprocessor[7234:23346] Metadata root: /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Metadata.appintents
+
+CopySwiftLibs /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/NXOR --scan-folder /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Frameworks --scan-folder /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PlugIns --scan-folder /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/SystemExtensions --scan-folder /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Extensions --platform iphonesimulator --toolchain /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-span
+Ignoring --strip-bitcode because --sign was not passed
+
+ValidateEmbeddedBinary /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PlugIns/NXORWidgets.appex (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    /Applications/Xcode_26.3.app/Contents/Developer/usr/bin/embeddedBinaryValidationUtility /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/PlugIns/NXORWidgets.appex -info-plist-path /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Info.plist
+
+AppIntentsSSUTraining (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    /Applications/Xcode_26.3.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Info.plist --temp-dir-path /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/ssu --bundle-id com.abus777.nxorapp --product-path /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app --extracted-metadata-path /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Metadata.appintents --metadata-file-list /Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/NXOR.DependencyMetadataFileList --archive-ssu-assets
+2026-11-14 23:59:08.549 appintentsnltrainingprocessor[7247:23397] Parsing options for appintentsnltrainingprocessor
+2026-11-14 23:59:08.552 appintentsnltrainingprocessor[7247:23397] Starting AppIntents SSU YAML Generation
+2026-11-14 23:59:08.584 appintentsnltrainingprocessor[7247:23397] Training 'Make an image with ${+applicationName}|Create a picture in ${+applicationName}' for en
+2026-11-14 23:59:08.584 appintentsnltrainingprocessor[7247:23397] Training 'Make a video with ${+applicationName}' for en
+2026-11-14 23:59:08.584 appintentsnltrainingprocessor[7247:23397] Training 'Ask ${+applicationName}' for en
+2026-11-14 23:59:08.584 appintentsnltrainingprocessor[7247:23397] Training Negative Phrases '' for en
+2026-11-14 23:59:08.584 appintentsnltrainingprocessor[7247:23397] Application name 'NXOR' for en
+2026-11-14 23:59:08.613 appintentsnltrainingprocessor[7247:23397] Generated AppIntents SSU YAML files in file:///Users/runner/work/nxorapp/nxorapp/build/NXOR.build/Debug-iphonesimulator/NXOR.build/ssu/
+2026-11-14 23:59:08.613 appintentsnltrainingprocessor[7247:23397] Copied AppIntents SSU YAML files to file:///Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Metadata.appintents/
+Archiving all locales.
+[------------------------------------------------------------] 0% archiving en[🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢] 100% archived en[🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢🁢] 100% archived 1 locales/Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Metadata.appintents/nlu
+/Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app/Metadata.appintents/nlu/c41a34ebddc0800d89c1cd992bf98b1d.version
+
+
+RegisterExecutionPolicyException /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    builtin-RegisterExecutionPolicyException /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app
+
+Validate /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    builtin-validationUtility /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app -shallow-bundle -infoplist-subpath Info.plist
+
+Touch /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app (in target 'NXOR' from project 'NXOR')
+    cd /Users/runner/work/nxorapp/nxorapp
+    /usr/bin/touch -c /Users/runner/work/nxorapp/nxorapp/build/Debug-iphonesimulator/NXOR.app
+
+warning: ONLY_ACTIVE_ARCH=YES requested with multiple ARCHS and no active architecture could be computed; building for all applicable architectures (in target 'NXORWidgets' from project 'NXOR')
+warning: ONLY_ACTIVE_ARCH=YES requested with multiple ARCHS and no active architecture could be computed; building for all applicable architectures (in target 'NXOR' from project 'NXOR')
+** BUILD SUCCEEDED **
+

@@ -1,0 +1,40 @@
+2026-11-15 00:23:07.371 E  NXOR[47366:1e61c] [com.apple.containermanager:unspecified] _container_query_get_result_at_index: error = 2→(98) NOT_CODESIGNED;
+2026-11-15 00:23:07.372 E  NXOR[47366:1e61c] [com.apple.containermanager:unspecified] container_system_group_path_for_identifier: error = ((container_error_t)98) NOT_CODESIGNED
+2026-11-15 00:23:07.381 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Initializing AlternativeServices Storage singleton
+2026-11-15 00:23:07.382 Df NXOR[47366:1e61c] [com.apple.FileURL:default] kExcludedFromBackupXattrName set on path: /Users/runner/Library/Developer/CoreSimulator/Devices/C15FAC2A-CB46-4F16-B882-3970BD44CFAD/data/Containers/Data/Application/A32EDF96-4EF2-4658-85A7-DC6B04EC436B/Library/HTTPStorages/com.abus777.nxorapp
+2026-11-15 00:23:07.388 Df NXOR[47366:1e67b] [com.apple.CFNetwork:Default] Garbage collection for alternative services
+2026-11-15 00:23:07.390 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Connection 0: creating secure tcp or quic connection
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <D50F47CF-09A1-4956-BBE3-FF100B46BDD8>.<3> waiting for setup of Connection 1
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <B4C07BB4-CA7C-4D98-BC7C-4913AE9A9009>.<2> waiting for setup of Connection 1
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <39253DE4-106B-4587-890C-36581C1CDE3F>.<1> waiting for setup of Connection 1
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <D0FC5B51-4DE3-4149-B04D-C0CBEC681A89>.<5> waiting for setup of Connection 1
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <93AB4F67-4D85-4D7F-95DA-4DF84CC68FE2>.<6> waiting for setup of Connection 1
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <C0AFA039-EB36-4516-BC24-AB3032AAF3A6>.<8> waiting for setup of Connection 1
+2026-11-15 00:23:07.397 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <3ECF3CB0-DE13-44F1-B54D-20886EB0D4DE>.<7> waiting for setup of Connection 1
+2026-11-15 00:23:07.398 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Connection 1: enabling TLS
+2026-11-15 00:23:07.398 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Connection 1: starting, TC(0x0)
+2026-11-15 00:23:07.403 Df NXOR[47366:1e61c] [com.apple.securityd:SecWarning] SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=47366 task=NXOR[47366]/0#-1 LF=22
+2026-11-15 00:23:07.404 Df NXOR[47366:1e61c] [com.apple.securityd:SecWarning] SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=47366 task=NXOR[47366]/0#-1 LF=22
+2026-11-15 00:23:07.410 Df NXOR[47366:1e61c] [com.apple.CFNetwork:Default] Task <5C2B733B-30B8-4CCA-9B8B-EDB9F563DFCF>.<4> setting up Connection 1
+2026-11-15 00:23:07.650 Df NXOR[47366:1e570] [com.apple.network:activity] <nw_activity 50:1 [22C931D0-E76D-4AAB-875A-C9F84A760E7A] (global parent) (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 6054ms
+2026-11-15 00:23:07.653 Df NXOR[47366:1e570] [com.apple.network:activity] <nw_activity 50:2 [32C871F8-CDDE-4BD2-86FC-606DF53398FE] (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 6057ms
+2026-11-15 00:23:07.653 Df NXOR[47366:1e570] [com.apple.network:activity] Unsetting the global parent activity <nw_activity 50:1 [22C931D0-E76D-4AAB-875A-C9F84A760E7A] (global parent) (reporting strategy default) complete (reason success)>
+2026-11-15 00:23:08.203 Df NXOR[47366:1e61c] [com.apple.calls.callkit:Default] Call host has no calls
+2026-11-15 00:23:24.035 Df NXOR[48300:1eec8] [com.apple.securityd:SecWarning] SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=48300 task=NXOR[48300]/0#-1 LF=22
+2026-11-15 00:23:24.084 Df NXOR[48300:1eded] [com.apple.securityd:SecWarning] SecTaskLoadEntitlements failed error=22 cs_flags=200, pid=48300 task=NXOR[48300]/0#-1 LF=22
+2026-11-15 00:23:24.090 Df NXOR[48300:1eed5] [com.apple.BoardServices:XPCErrors] [C:1] Alloc com.apple.frontboard.systemappservices
+2026-11-15 00:23:24.174 Df NXOR[48300:1eded] [com.apple.dt.xctest:Default] Registering for test daemon availability notify post.
+2026-11-15 00:23:24.175 Df NXOR[48300:1eded] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-15 00:23:24.175 Df NXOR[48300:1eded] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-15 00:23:24.176 Df NXOR[48300:1eded] [com.apple.dt.xctest:Default] notify_get_state check indicated test daemon not ready.
+2026-11-15 00:23:24.270 Df NXOR[48300:1eded] [com.apple.BoardServices:XPCErrors] [C:2] Alloc com.apple.backboard.hid-services.xpc
+2026-11-15 00:23:24.293 Df NXOR[48300:1eded] [com.apple.UIKit:KeyWindow] Setting default evaluation strategy for UIUserInterfaceIdiomPhone to LastOneWins
+2026-11-15 00:23:24.294 Df NXOR[48300:1eded] [com.apple.UIKit:KeyWindow] Setting default evaluation strategy for UIUserInterfaceIdiomPhone to SystemShellManaged
+2026-11-15 00:23:25.033 Df NXOR[48300:1eded] [PrototypeTools:domain] Not observing PTDefaults on customer install.
+2026-11-15 00:23:25.033 Df NXOR[48300:1eec8] [com.apple.calls.callkit:Default] Call host has no calls
+2026-11-15 00:23:25.502 Df NXOR[48300:1eded] [com.apple.network:activity] Create activity from XPC object <nw_activity 50:1 [70835928-C9D6-4E94-B062-545BC9894EE8] (reporting strategy default)>
+2026-11-15 00:23:25.502 Df NXOR[48300:1eded] [com.apple.network:activity] Create activity from XPC object <nw_activity 50:2 [DA12F0A9-57EE-4D60-95D8-BB70E3A7783E] (reporting strategy default)>
+2026-11-15 00:23:25.502 Df NXOR[48300:1eded] [com.apple.network:activity] Set activity <nw_activity 50:1 [70835928-C9D6-4E94-B062-545BC9894EE8] (reporting strategy default)> as the global parent
+2026-11-15 00:23:26.064 Df NXOR[48300:1eded] [com.apple.network:activity] <nw_activity 50:1 [70835928-C9D6-4E94-B062-545BC9894EE8] (global parent) (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 3949ms
+2026-11-15 00:23:26.064 Df NXOR[48300:1eded] [com.apple.network:activity] <nw_activity 50:2 [DA12F0A9-57EE-4D60-95D8-BB70E3A7783E] (reporting strategy default) complete (reason success)> complete with reason 2 (success), duration 3949ms
+2026-11-15 00:23:26.064 Df NXOR[48300:1eded] [com.apple.network:activity] Unsetting the global parent activity <nw_activity 50:1 [70835928-C9D6-4E94-B062-545BC9894EE8] (global parent) (reporting strategy default) complete (reason success)>
